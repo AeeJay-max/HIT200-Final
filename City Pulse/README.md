@@ -1,29 +1,6 @@
-# 🏙️ Civic Issue Reporter
+# 🏙️ City Pulse
 
 A real-time, full-stack civic issue management platform designed to improve local governance by empowering citizens to report issues and enabling authorities to resolve them efficiently. This application supports photo uploads, status tracking, geotagging, and role-based access for admins and citizens.
-
----
-
-## 🔗 Live Demo
-
-Check out the deployed application here:  
-👉 [https://civic-issue-reporter-application.vercel.app/]
-
----
-
-## 📸 Preview
-
-### LandingPage View
-<img src="Assets/Home.png" alt="HomePreview" width="500" />
-
-### Admin View
-<img src="Assets/AdminHome.png" alt="HomePreview" width="500" />
-
-### Citizen View
-<img src="Assets/CitizenHome.png" alt="HomePreview" width="500" />
-
-### Report an Issue View
-<img src="Assets/ReportIssue.png" alt="HomePreview" width="500" />
 
 ---
 
@@ -53,36 +30,21 @@ Check out the deployed application here:
 
 ---
 
-## 🛠️ Tech Stack
-
-| Frontend     | Backend       | Database | Utilities            | Dev Tools             |
-|--------------|----------------|----------|-----------------------|------------------------|
-| React        | Node.js        | MongoDB  | JWT (Auth)            | Vite                   |
-| TypeScript   | Express.js     | Mongoose | Zod (Validation)      | Shadcn UI Components   |
-| Tailwind CSS |                |          | Cloudinary (Uploads)  | Framer Motion          |
-
----
-
 ## ⚙️ Installation & Setup
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/your-username/Civic-issue-reporter-application.git
-   cd Civic-issue-reporter-application
-
-2. **Frontend Setup**
+1. **Frontend Setup**
    ```bash
    cd frontend
    npm install
    npm run dev
    
-3. **Backend Setup**
+2. **Backend Setup**
    ```bash
    cd backend
    npm install
    npm run dev
    
-4. **Environment Variables**
+3. **Environment Variables**
    Create .env files in both frontend and backend directories.
    ##Backend .env example:
    ```bash
@@ -93,10 +55,6 @@ Check out the deployed application here:
    CLOUDINARY_API_SECRET=your_api_secret
    CORS_ORIGIN=*
    PORT=5000
-
-  ##Frontend .env example:
-  ```bash
-  VITE_MAPBOXGL_ACCESS_TOKEN=your_access_token
 
 
 
