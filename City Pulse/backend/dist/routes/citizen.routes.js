@@ -1,0 +1,16 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const citizen_auth_controller_1 = require("../controllers/auth-controllers/citizen.auth.controller");
+const auth_middleware_1 = require("../middlerware/auth.middleware");
+const citizen_controller_1 = require("../controllers/citizen.controller");
+const router = (0, express_1.Router)();
+router.post("/citizen/signup", citizen_auth_controller_1.citizenSignup);
+router.post("/citizen/signin", citizen_auth_controller_1.citizenSignin);
+router.get("/citizen/profile/", auth_middleware_1.authMiddleware, citizen_controller_1.getCitizenProfile);
+router.put("/citizen/:id", auth_middleware_1.authMiddleware, citizen_controller_1.updateCitizenProfile);
+router.get("/citizen/issues", auth_middleware_1.authMiddleware, citizen_controller_1.getIssuesByCitizen);
+router.delete("/citizen/issues/:id", auth_middleware_1.authMiddleware, citizen_controller_1.deleteIssue);
+const notification_controller_1 = require("../controllers/notification.controller");
+router.get("/citizen/notifications", auth_middleware_1.authMiddleware, notification_controller_1.getNotifications);
+exports.default = router;

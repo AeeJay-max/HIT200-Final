@@ -1,0 +1,224 @@
+@import url("https://fonts.googleapis.com/css2?family=Pacifico&display=swap");
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 260 80% 50%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 270 70% 55%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 260 25% 95%;
+    --muted-foreground: 265 20% 50%;
+    --accent: 275 75% 55%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 260 20% 90%;
+    --input: 260 20% 90%;
+    --ring: 260 80% 50%;
+    --radius: 0.5rem;
+  }
+}
+
+/* ---------------------------------------------------------------
+   BLUE ONLY GRADIENTS (DEEPER + RICHER)
+---------------------------------------------------------------- */
+
+/* Primary App Hero Gradient */
+.civic-gradient {
+  background: linear-gradient(135deg,
+      hsl(210 85% 85%) 0%,
+      hsl(210 80% 70%) 25%,
+      hsl(210 75% 55%) 50%,
+      hsl(210 80% 40%) 75%,
+      hsl(210 85% 30%) 100%);
+  background-size: 200% 200%;
+  animation: gradient-move 8s ease infinite alternate;
+}
+
+/* Light card / dashboard gradient (slightly toned down blue) */
+.civic-gradient-light {
+  background: linear-gradient(135deg,
+      hsl(210 95% 94%) 0%,
+      hsl(210 90% 88%) 30%,
+      hsl(210 80% 82%) 65%,
+      hsl(210 70% 75%) 100%);
+  background-size: 200% 200%;
+  animation: gradient-move 10s ease infinite alternate;
+}
+
+/* Active tab / button state — deep rich blue */
+[data-state="active"].rounded-full {
+  background: linear-gradient(135deg,
+      hsl(210 80% 70%) 0%,
+      hsl(210 75% 55%) 45%,
+      hsl(210 80% 40%) 85%);
+  background-size: 200% 200%;
+  animation: gradient-move 8s ease infinite alternate;
+  color: white;
+}
+
+/* Soft blue UI section background */
+.canva-gradient-section {
+  background: linear-gradient(135deg,
+      hsl(210 60% 97%) 0%,
+      hsl(210 55% 94%) 40%,
+      hsl(210 50% 90%) 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.canva-gradient-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at top left, rgba(255, 255, 255, 0.4) 0%, transparent 50%),
+    radial-gradient(circle at bottom right, rgba(255, 255, 255, 0.3) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.index-bg {
+  background-image:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.6) 0%, transparent 35%),
+    radial-gradient(circle at bottom right, rgba(255, 255, 255, 0.5) 0%, transparent 35%),
+    linear-gradient(135deg, #f2f6f6 0%, #e8ecef 35%, #f9eeee 100%);
+  background-attachment: fixed;
+  background-blend-mode: screen;
+}
+
+.dark .index-bg {
+  background-image: none;
+  background-color: black;
+}
+
+/* ---------------------------------------------------------------
+   Animations (Unchanged)
+---------------------------------------------------------------- */
+@layer utilities {
+  @keyframes hero-shine {
+    0% {
+      transform: translateX(-120%) skewX(12deg);
+      opacity: 0;
+    }
+
+    15% {
+      opacity: 0.6;
+    }
+
+    60% {
+      opacity: 0;
+    }
+
+    100% {
+      transform: translateX(220%) skewX(12deg);
+      opacity: 0;
+    }
+  }
+
+  .animate-hero-shine {
+    animation: hero-shine 1.2s ease-out forwards;
+  }
+}
+
+@keyframes gradient-move {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Tailwind Base Layer (unchanged)
+---------------------------------------------------------------- */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply text-foreground;
+  }
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+/* ---------------------------------------------------------------
+   DISASTER BROADCAST MODE (CRITICAL EMERGENCY OVERRIDE)
+---------------------------------------------------------------- */
+body.disaster-mode {
+  background: radial-gradient(circle, #7f1d1d 0%, #450a0a 100%) !important;
+  color: white !important;
+  transition: all 0.5s ease-in-out;
+}
+
+.disaster-mode .bg-white {
+  background-color: #450a0a !important;
+  color: white !important;
+  border-color: #ef4444 !important;
+}
+
+.disaster-mode .bg-white\/70 {
+  background-color: rgba(69, 10, 10, 0.7) !important;
+  color: white !important;
+}
+
+.disaster-mode .text-slate-500,
+.disaster-mode .text-gray-500,
+.disaster-mode .text-gray-700 {
+  color: #fca5a5 !important;
+}
+
+.disaster-mode .civic-gradient {
+  background: #fee2e2 !important;
+  color: #7f1d1d !important;
+}
+
+.disaster-mode .text-\[\#0577b7\],
+.disaster-mode .text-sky-600 {
+  color: #f87171 !important;
+}
+
+.disaster-mode .bg-blue-50 {
+  background-color: #7f1d1d !important;
+  color: white !important;
+}
+
+.disaster-mode .text-blue-800 {
+  color: #fecaca !important;
+}
