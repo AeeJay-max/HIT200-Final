@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { VITE_BACKEND_URL } from "../config/config";
+import { Button } from "./ui/button";
+import { Loader2, Zap } from "lucide-react";
 
 interface Issue {
     _id: string;
@@ -17,7 +20,36 @@ interface IssueMapViewProps {
 const IssueMapView: React.FC<IssueMapViewProps> = ({ issues }) => {
     const mapContainer = useRef<HTMLDivElement>(null);
     const mapRef = useRef<maplibregl.Map | null>(null);
-    const [userLocation, setUserLocation] = useState<[number, number]>([31.0530, -17.8248]); // Default Harare
+    const markersRef = useRef<maplibregl.Marker[]>([]);
+    const [userLocation, setUserLocation] = useState<[number, number]>([31.0530, -17.8248]);
+
+    // GEO-ANALYTICS STATE
+    const [radiusMode, setRadiusMode] = useState(false);
+    const [radiusCenter, setRadiusCenter] = useState<[number, number] | null>(null);
+    const [hotspots, setHotspots] = useState<any[]>([]);
+    const [loadingHotspots, setLoadingHotspots] = useState(false);
+
+    const fetchHotspots = async (lng: number, lat: number) => {
+        setLoadingHotspots(true);
+        try {
+            const response = await fetch(`${VITE_BACKEND_URL}/api/v1/admin/analytics/radius`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+                },
+                body: JSON.stringify({ lat, lng, radiusKm: 10 }),
+            });
+            const data = await response.json();
+            if (data.success) {
+                setHotspots(data.hotspots);
+            }
+        } catch (err) {
+            console.error("Hotspot error", err);
+        } finally {
+            setLoadingHotspots(false);
+        }
+    };
 
     useEffect(() => {
         if (navigator.geolocation) {
@@ -44,100 +76,143 @@ const IssueMapView: React.FC<IssueMapViewProps> = ({ issues }) => {
 
             mapRef.current.addControl(new maplibregl.NavigationControl(), 'top-right');
         } else {
-            // Update center if it was dynamically fetched later and map already exists
-            mapRef.current.setCenter(userLocation);
+            if (!radiusMode) mapRef.current.setCenter(userLocation);
         }
-
-        // Use standard GeoJSON native clustering for high density resolution
-        const features = issues.map(issue => {
-            let color = "#3b82f6"; // blue
-            if (issue.status === "Resolved") color = "#22c55e"; // green
-            else if (issue.status === "Rejected") color = "#ef4444"; // red
-            else if (issue.status === "Pending") color = "#f59e0b"; // yellow
-            else if (issue.status === "In Progress") color = "#3b82f6"; // blue
-            else if (issue.status === "Reported") color = "#a855f7"; // purple
-
-            return {
-                type: "Feature",
-                geometry: {
-                    type: "Point",
-                    coordinates: [issue.location.longitude, issue.location.latitude]
-                },
-                properties: {
-                    id: issue._id,
-                    title: issue.title,
-                    status: issue.status,
-                    type: issue.type,
-                    color: color
-                }
-            };
-        });
-
-        const geojsonData = {
-            type: "FeatureCollection",
-            features: features
-        };
 
         const map = mapRef.current;
 
-        map.on('load', () => {
-            if (map.getSource('issues')) {
-                (map.getSource('issues') as maplibregl.GeoJSONSource).setData(geojsonData as any);
-            } else {
-                map.addSource('issues', {
-                    type: 'geojson',
-                    data: geojsonData as any,
-                    cluster: true,
-                    clusterMaxZoom: 14,
-                    clusterRadius: 50
-                });
+        const handleMapClick = (e: maplibregl.MapMouseEvent) => {
+            if (!radiusMode) return;
+            setRadiusCenter([e.lngLat.lng, e.lngLat.lat]);
+            fetchHotspots(e.lngLat.lng, e.lngLat.lat);
+        };
 
-                map.addLayer({
-                    id: 'clusters',
-                    type: 'circle',
-                    source: 'issues',
-                    filter: ['has', 'point_count'],
-                    paint: {
-                        'circle-color': ['step', ['get', 'point_count'], '#51bbd6', 10, '#f1f075', 50, '#f28cb1'],
-                        'circle-radius': ['step', ['get', 'point_count'], 20, 10, 30, 50, 40]
-                    }
-                });
+        map.on('click', handleMapClick);
 
-                map.addLayer({
-                    id: 'cluster-count',
-                    type: 'symbol',
-                    source: 'issues',
-                    filter: ['has', 'point_count'],
-                    layout: {
-                        'text-field': '{point_count_abbreviated}',
-                        'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
-                        'text-size': 12
-                    }
-                });
+        return () => {
+            map.off('click', handleMapClick);
+        }
+    }, [userLocation, radiusMode]);
 
-                map.addLayer({
-                    id: 'unclustered-point',
-                    type: 'circle',
-                    source: 'issues',
-                    filter: ['!', ['has', 'point_count']],
-                    paint: {
-                        'circle-color': ['get', 'color'],
-                        'circle-radius': 8,
-                        'circle-stroke-width': 1,
-                        'circle-stroke-color': '#fff'
-                    }
-                });
-            }
-        });
+    useEffect(() => {
+        if (!mapRef.current) return;
 
-        // if already loaded and deps changed
-        if (map.isStyleLoaded() && map.getSource('issues')) {
-            (map.getSource('issues') as maplibregl.GeoJSONSource).setData(geojsonData as any);
+        // Clear old markers
+        markersRef.current.forEach(marker => marker.remove());
+        markersRef.current = [];
+
+        if (mapRef.current.getSource("scan-radius")) {
+            mapRef.current.removeLayer("scan-radius-fill");
+            mapRef.current.removeLayer("scan-radius-outline");
+            mapRef.current.removeSource("scan-radius");
         }
 
-    }, [issues, userLocation]);
+        if (radiusMode && radiusCenter) {
+            // Display Hotspots
+            hotspots.forEach(hotspot => {
+                const el = document.createElement('div');
+                el.className = 'w-8 h-8 rounded-full bg-red-500/80 border-2 border-white flex items-center justify-center font-bold text-white text-xs shadow-lg animate-pulse';
+                el.innerText = hotspot.count.toString();
 
-    return <div ref={mapContainer} style={{ width: "100%", height: "600px", borderRadius: "8px", overflow: "hidden", border: "1px solid #e2e8f0" }} />;
+                const popup = new maplibregl.Popup({ offset: 25 }).setHTML(
+                    `<strong>🚨 Recurrence Cluster</strong><br/>
+                     ${hotspot.count} issues reported here<br/>
+                     Type: ${hotspot._id.issueType}`
+                );
+
+                const marker = new maplibregl.Marker({ element: el })
+                    .setLngLat([hotspot._id.lng, hotspot._id.lat])
+                    .setPopup(popup)
+                    .addTo(mapRef.current!);
+
+                markersRef.current.push(marker);
+            });
+
+            // Draw a rough circle polygon for 10km visually (using a pure geojson approx)
+            import("@turf/circle").then(({ default: turfCircle }) => {
+                const circleGeojson = turfCircle(radiusCenter, 10, { units: 'kilometers' });
+
+                if (!mapRef.current!.getSource("scan-radius")) {
+                    mapRef.current!.addSource("scan-radius", {
+                        type: "geojson",
+                        data: circleGeojson
+                    });
+                    mapRef.current!.addLayer({
+                        id: "scan-radius-fill",
+                        type: "fill",
+                        source: "scan-radius",
+                        paint: { "fill-color": "#ef4444", "fill-opacity": 0.1 }
+                    });
+                    mapRef.current!.addLayer({
+                        id: "scan-radius-outline",
+                        type: "line",
+                        source: "scan-radius",
+                        paint: { "line-color": "#ef4444", "line-width": 2, "line-dasharray": [2, 2] }
+                    });
+                }
+            });
+
+        } else {
+            // Add normal issues
+            issues.forEach(issue => {
+                let color = "#3b82f6";
+                if (issue.status === "Resolved" || issue.status === "Resolved (Unverified)" || issue.status === "Closed") color = "#22c55e";
+                else if (issue.status === "Rejected") color = "#ef4444";
+                else if (issue.status === "Pending") color = "#f59e0b";
+                else if (issue.status === "In Progress" || issue.status === "Worker Assigned") color = "#3b82f6";
+                else if (issue.status === "Reported") color = "#a855f7";
+
+                if (issue.location && typeof issue.location.longitude === "number" && typeof issue.location.latitude === "number") {
+                    const popup = new maplibregl.Popup({ offset: 25 }).setHTML(
+                        `<strong>${issue.title}</strong><br/>
+               Status: <em>${issue.status}</em><br/>
+               Type: ${issue.type}`
+                    );
+
+                    const marker = new maplibregl.Marker({ color })
+                        .setLngLat([issue.location.longitude, issue.location.latitude])
+                        .setPopup(popup)
+                        .addTo(mapRef.current!);
+
+                    markersRef.current.push(marker);
+                }
+            });
+        }
+
+    }, [issues, radiusMode, radiusCenter, hotspots]);
+
+    return (
+        <div className="relative w-full h-[600px] border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+            {/* Overlay Controls */}
+            <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-md p-4 rounded-xl shadow-lg border border-slate-100 max-w-sm">
+                <h3 className="font-bold text-slate-800 mb-2 flex items-center"><Zap className="w-4 h-4 mr-2 text-rose-500" /> Intelligence Overlay</h3>
+                <p className="text-xs text-slate-500 mb-4">Toggle Geographic Radius Analytics to scan for severe infrastructure failure clusters within a 10km perimeter.</p>
+                <Button
+                    variant={radiusMode ? "destructive" : "default"}
+                    className={`w-full ${radiusMode ? '' : 'bg-slate-800'}`}
+                    onClick={() => {
+                        setRadiusMode(!radiusMode);
+                        setRadiusCenter(null);
+                        setHotspots([]);
+                    }}
+                >
+                    {loadingHotspots && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    {radiusMode ? "Disable 10km Scanner" : "Activate 10km Scanner"}
+                </Button>
+                {radiusMode && !radiusCenter && (
+                    <p className="text-xs font-semibold text-rose-600 mt-3 animate-pulse text-center">Click anywhere on the map to set scan perimeter!</p>
+                )}
+                {radiusMode && radiusCenter && (
+                    <div className="mt-3 p-3 bg-slate-50 rounded border text-xs">
+                        <span className="font-semibold block text-slate-700">Scan Results:</span>
+                        Found {hotspots.length} density clusters detected inside perimeter.
+                    </div>
+                )}
+            </div>
+
+            <div ref={mapContainer} className="w-full h-full" />
+        </div>
+    );
 };
 
 export default IssueMapView;

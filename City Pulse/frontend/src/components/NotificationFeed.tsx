@@ -1,38 +1,16 @@
-import { useEffect, useState } from "react";
-import { VITE_BACKEND_URL } from "../config/config";
+import { useNotifications } from "../contexts/NotificationContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
-import { toast } from "sonner";
-import { Bell, Zap, Droplet, Hammer, Info } from "lucide-react";
-
-interface Notification {
-    _id: string;
-    title: string;
-    message: string;
-    type: string;
-    createdAt: string;
-}
+import { Bell, Zap, Droplet, Hammer, Info, AlertTriangle } from "lucide-react";
 
 export default function NotificationFeed() {
-    const [notifications, setNotifications] = useState<Notification[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        fetch(`${VITE_BACKEND_URL}/api/v1/citizen/notifications`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` }
-        })
-            .then((res) => res.json())
-            .then((json) => {
-                if (json.success) setNotifications(json.notifications);
-            })
-            .catch(() => toast.error("Failed to load notifications"))
-            .finally(() => setLoading(false));
-    }, []);
+    const { notifications } = useNotifications();
 
     const getIcon = (type: string) => {
         switch (type) {
             case "Power Outage": return <Zap className="w-5 h-5 text-yellow-500" />;
             case "Water Supply": return <Droplet className="w-5 h-5 text-blue-500" />;
             case "Road Maintenance": return <Hammer className="w-5 h-5 text-orange-500" />;
+            case "Emergency": return <AlertTriangle className="w-5 h-5 text-red-500" />;
             default: return <Info className="w-5 h-5 text-gray-500" />;
         }
     };
@@ -42,11 +20,10 @@ export default function NotificationFeed() {
             case "Power Outage": return "border-l-yellow-500";
             case "Water Supply": return "border-l-blue-500";
             case "Road Maintenance": return "border-l-orange-500";
+            case "Emergency": return "border-l-red-500 bg-red-50";
             default: return "border-l-gray-500";
         }
     };
-
-    if (loading) return <div className="p-8 text-center text-gray-500">Loading alerts...</div>;
 
     return (
         <div className="space-y-4">
@@ -64,11 +41,15 @@ export default function NotificationFeed() {
                             <div className="flex items-center gap-2">
                                 {getIcon(n.type)}
                                 <CardTitle className="text-lg text-slate-700">{n.title}</CardTitle>
+                                {!n.isRead && <span className="ml-2 w-2 h-2 rounded-full bg-blue-500"></span>}
+                                {n.priority !== "Normal" && <span className="ml-auto text-xs px-2 py-1 bg-red-100 text-red-700 rounded-full font-bold">{n.priority}</span>}
                             </div>
                             <CardDescription className="text-xs">{new Date(n.createdAt).toLocaleString()}</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <p className="text-slate-600 text-sm whitespace-pre-wrap">{n.message}</p>
+                            {n.linkTo && <a href={n.linkTo} className="text-blue-500 hover:underline mt-2 block text-sm">View details</a>}
+                            {n.targetRoute && <a href={n.targetRoute} className="text-blue-500 hover:underline mt-2 block text-sm">View Target</a>}
                         </CardContent>
                     </Card>
                 ))

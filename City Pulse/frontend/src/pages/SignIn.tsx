@@ -26,12 +26,12 @@ import { useLoader } from "../contexts/LoaderContext";
 const SignIn = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [citizenForm, setCitizenForm] = useState({ email: "", password: "" });
-  const [workerForm, setWorkerForm] = useState({ email: "", password: "" });
   const [adminForm, setAdminForm] = useState({
     email: "",
     password: "",
     adminAccessCode: "",
   });
+  const [workerForm, setWorkerForm] = useState({ email: "", password: "" });
   const [activeTab, setActiveTab] = useState<"citizen" | "admin" | "worker">("citizen");
 
   const navigate = useNavigate();
@@ -53,12 +53,7 @@ const SignIn = () => {
           login(citizenForm.email, citizenForm.password, "citizen"),
           minLoaderDuration,
         ]).then(([res]) => res);
-      } else if (activeTab === "worker") {
-        result = await Promise.all([
-          login(workerForm.email, workerForm.password, "worker"),
-          minLoaderDuration,
-        ]).then(([res]) => res);
-      } else {
+      } else if (activeTab === "admin") {
         result = await Promise.all([
           login(
             adminForm.email,
@@ -68,20 +63,20 @@ const SignIn = () => {
           ),
           minLoaderDuration,
         ]).then(([res]) => res);
+      } else {
+        result = await Promise.all([
+          login(workerForm.email, workerForm.password, "worker"),
+          minLoaderDuration,
+        ]).then(([res]) => res);
       }
 
       if (result === true) {
         toast.success("Sign In Successful!", {
-          description:
-            activeTab === "citizen"
-              ? "Welcome back!"
-              : activeTab === "worker"
-                ? "Welcome back, Operator!"
-                : "Welcome back, Administrator!",
+          description: "Welcome back!",
         });
-        navigate(activeTab === "citizen" ? "/citizen" : activeTab === "worker" ? "/worker" : "/admin", {
-          replace: true,
-        });
+
+        const path = activeTab === "citizen" ? "/citizen" : activeTab === "admin" ? "/admin" : "/worker";
+        navigate(path, { replace: true });
       } else {
         toast.error("Sign In Failed!", {
           description: "Invalid credentials",
@@ -145,16 +140,16 @@ const SignIn = () => {
                   Citizen
                 </TabsTrigger>
                 <TabsTrigger
-                  value="worker"
-                  className="rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#016dd0] data-[state=active]:to-[#159e52] data-[state=active]:text-white"
-                >
-                  Field Worker
-                </TabsTrigger>
-                <TabsTrigger
                   value="admin"
                   className="rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#016dd0] data-[state=active]:to-[#159e52] data-[state=active]:text-white"
                 >
-                  Administrator
+                  Admin
+                </TabsTrigger>
+                <TabsTrigger
+                  value="worker"
+                  className="rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#016dd0] data-[state=active]:to-[#159e52] data-[state=active]:text-white"
+                >
+                  Worker
                 </TabsTrigger>
               </TabsList>
 
@@ -365,7 +360,7 @@ const SignIn = () => {
                         </div>
                         <Button
                           type="submit"
-                          className="w-full civic-gradient text-white hover:opacity-70 transition-all duration-500 ease-in-out"
+                          className="w-full bg-slate-700 text-white hover:bg-slate-800 transition-all duration-500 ease-in-out"
                         >
                           Sign In as Field Worker
                         </Button>

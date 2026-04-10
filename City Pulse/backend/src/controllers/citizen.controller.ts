@@ -82,8 +82,6 @@ export const getIssuesByCitizen = async (req: Request, res: Response) => {
 
     const issues = await IssueModel.find({ citizenId })
       .populate("citizenId", "fullName")
-      .populate("assignedWorker", "fullName")
-      .populate("assignedDepartment", "name")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -122,22 +120,5 @@ export const deleteIssue = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error("Error deleting issue:", error);
     res.status(500).json({ message: "Internal Server Error" });
-  }
-};
-
-export const getTrustScore = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    const citizenId = (req as any).citizenId;
-    const citizen = await CitizenModel.findById(citizenId);
-    if (!citizen) {
-      res.status(404).json({ message: "Citizen not found" });
-      return;
-    }
-    res.status(200).json({ success: true, trustScore: citizen.trustScore });
-  } catch (err) {
-    res.status(500).json({ success: false, message: "Internal server error" });
   }
 };

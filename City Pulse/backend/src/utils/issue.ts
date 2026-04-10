@@ -3,54 +3,53 @@ import { Types } from "mongoose";
 
 export interface IIssue {
   citizenId: Types.ObjectId; // reference to Citizen
-  issueType:
-  | "Potholes"
-  | "Burst Water Pipes"
-  | "Sewer Issues"
-  | "Streetlights"
-  | "Traffic Lights"
-  | "Illegal Dumping"
-  | "Other";
+  issueType: string;
   title: string;
   description: string;
-  severity?: "low" | "medium" | "high" | "critical";
-  status?: "Reported" | "Assigned" | "Scheduled" | "In Progress" | "Cleared" | "Resolved" | "Verified" | "Rejected" | "Pending" | "Maintenance Queue";
+  status?: string;
+  workflowStage?: string;
+  severity?: string;
   location: ILocation; // embedded location object
   media?: Types.ObjectId[]; // refs to multimedia
-
-  // Pothole Specific Attributes
-  potholeDetails?: {
-    diameter: number;
-    depth: number;
-    isOnHighway: boolean;
-    autoClassifiedDanger: boolean;
+  images?: { url: string; stage: "Reported" | "Before" | "After" }[];
+  cleanupStage?: "Scheduled" | "In Progress" | "Cleared" | "Verified";
+  dangerMetrics?: {
+    diameterCm: number;
+    depthCm: number;
+    isOnMainRoad: boolean;
+    autoSeverityScore: number;
+    isLifeThreatening: boolean;
   };
-
-  // Dumping Site Specific Attributes
-  evidenceMedia?: Array<{ url: string; type: string }>;
-
-  // Worker Assignment Tracking
-  assignedDepartment?: Types.ObjectId;
-  assignedDeptAdmin?: Types.ObjectId;
-  assignedWorker?: Types.ObjectId;
-
-  // Smart Timeline & Accountability
-  expectedCompletionDeadline?: Date;
-  isOverdue?: boolean;
-
-  // Smart City Features
-  upvotes?: number;
-  voters?: Types.ObjectId[];
-  isDuplicateOf?: Types.ObjectId;
-  isEmergencyEscalation?: boolean;
-  priorityScore?: number;
-  escalationPriority?: string;
-  clusterId?: Types.ObjectId;
-
+  timeline?: {
+    reportedAt: Date;
+    assignedAt?: Date;
+    workBegunAt?: Date;
+    resolvedAt?: Date;
+    isOverdue: boolean;
+  };
+  upvotes?: Types.ObjectId[];
+  aiDuplicateFlag?: Types.ObjectId;
+  emergencyEscalation?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
-  assignedAt?: Date;
-  workStartedAt?: Date;
-  resolvedAt?: Date;
   handledBy?: Object | string;
+  assignedDepartment?: Types.ObjectId;
+  departmentAdminAssignedBy?: Types.ObjectId;
+  workerAssignedToFix?: Types.ObjectId;
+  assignmentAcceptedTimestamp?: Date;
+  assignmentRejectedTimestamp?: Date;
+  workerAssignmentTimestamp?: Date;
+  deadlineTimestamp?: Date;
+  priorityScore?: number;
+  escalationLevel?: number;
+  escalationPriority?: "Low" | "Medium" | "High";
+  district?: string;
+  resolutionQualityVerifiedBy?: Types.ObjectId;
+  resolutionVerificationTimestamp?: Date;
+  delayDuration?: number;
+  violationStage?: string;
+  queueType?: "emergency" | "maintenance" | "general";
+  duplicateReferenceIssueId?: Types.ObjectId;
+  overdueStatus?: boolean;
+  isDeleted?: boolean;
 }

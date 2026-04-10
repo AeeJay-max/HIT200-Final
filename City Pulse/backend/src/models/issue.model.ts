@@ -7,13 +7,11 @@ const locationSchema = new Schema<ILocation>(
     latitude: { type: Number, required: true, min: -90, max: 90 },
     longitude: { type: Number, required: true, min: -180, max: 180 },
     address: String,
-    type: { type: String, enum: ["Point"], default: "Point" },
-    coordinates: { type: [Number] } // [longitude, latitude]
   },
   { _id: false }
 );
 
-const IssueSchema = new Schema<IIssue & Document>(
+const IssueSchema = new Schema<IIssue & Document & any>(
   {
     citizenId: {
       type: Schema.Types.ObjectId,
@@ -23,16 +21,20 @@ const IssueSchema = new Schema<IIssue & Document>(
     issueType: {
       type: String,
       enum: [
-        "Potholes",
+        "Life-Threatening Potholes",
         "Burst Water Pipes",
-        "Sewer Issues",
-        "Streetlights",
-        "Traffic Lights",
-        "Illegal Dumping",
-        "Other",
+        "Sewer Failures",
+        "Streetlight Failures",
+        "Traffic Light Failures",
+        "Illegal Dumping Sites",
       ],
-      default: "Other",
       required: true,
+    },
+    severity: {
+      type: String,
+      enum: ["Critical", "High", "Medium", "Low"],
+      required: true,
+      default: "Low"
     },
     title: {
       type: String,
@@ -45,59 +47,137 @@ const IssueSchema = new Schema<IIssue & Document>(
       type: String,
       required: true,
     },
-    severity: {
-      type: String,
-      enum: ["low", "medium", "high", "critical"],
-    },
     status: {
       type: String,
-      enum: ["Reported", "Assigned", "Scheduled", "In Progress", "Cleared", "Resolved", "Verified", "Rejected", "Pending", "Maintenance Queue"],
-      default: "Reported",
+      enum: ["Reported", "In Progress", "Resolved", "Rejected", "Pending", "Escalated", "Worker Assigned", "Resolved (Unverified)", "Closed", "SUBMITTED", "ROUTED_TO_DEPARTMENT", "ASSIGNED_TO_WORKER", "WORKER_ACCEPTED", "AWAITING_VERIFICATION", "COMPLETED", "IN_PROGRESS"],
+      default: "SUBMITTED",
     },
     location: {
       type: locationSchema,
       required: true,
     },
-    media: {
+    media: [{
       type: Schema.Types.ObjectId,
       ref: "Multimedia",
+    }],
+    images: [{
+      url: String,
+      stage: { type: String, enum: ["Reported", "Before", "After"] }
+    }],
+    cleanupStage: {
+      type: String,
+      enum: ["Scheduled", "In Progress", "Cleared", "Verified"]
     },
-    potholeDetails: {
-      diameter: Number,
-      depth: Number,
-      isOnHighway: Boolean,
-      autoClassifiedDanger: Boolean,
+    dangerMetrics: {
+      diameterCm: Number,
+      depthCm: Number,
+      isOnMainRoad: Boolean,
+      autoSeverityScore: Number,
+      isLifeThreatening: Boolean,
     },
-    evidenceMedia: [{ url: String, type: { type: String } }],
-    assignedDepartment: { type: Schema.Types.ObjectId, ref: "Department" },
-    assignedDeptAdmin: { type: Schema.Types.ObjectId, ref: "Admin" },
-    assignedWorker: { type: Schema.Types.ObjectId, ref: "Admin" },
-    expectedCompletionDeadline: Date,
-    isOverdue: { type: Boolean, default: false },
-    upvotes: { type: Number, default: 0 },
-    voters: [{ type: Schema.Types.ObjectId, ref: "Citizen" }],
-    isDuplicateOf: { type: Schema.Types.ObjectId, ref: "Issue" },
-    isEmergencyEscalation: { type: Boolean, default: false },
-    assignedAt: Date,
-    workStartedAt: Date,
-    resolvedAt: Date,
+    timeline: {
+      reportedAt: { type: Date, default: Date.now },
+      assignedAt: Date,
+      workBegunAt: Date,
+      resolvedAt: Date,
+      isOverdue: { type: Boolean, default: false }
+    },
+    delayDuration: { type: Number, default: 0 },
+    violationStage: { type: String },
+    queueType: {
+      type: String,
+      enum: ["emergency", "maintenance", "general"],
+      default: "general"
+    },
+    duplicateReferenceIssueId: { type: Schema.Types.ObjectId, ref: "Issue" },
+    upvotes: [{ type: Schema.Types.ObjectId, ref: "Citizen" }],
+    aiDuplicateFlag: { type: Schema.Types.ObjectId, ref: "Issue" },
+    emergencyEscalation: { type: Boolean, default: false },
     handledBy: {
       type: Schema.Types.ObjectId,
       ref: "Admin",
     },
+    assignedDepartment: { type: Schema.Types.ObjectId, ref: "Department" },
+    departmentAdminAssignedBy: { type: Schema.Types.ObjectId, ref: "Admin" },
+    workerAssignedToFix: { type: Schema.Types.ObjectId, ref: "Worker" },
+    assignmentAcceptedTimestamp: { type: Date },
+    assignmentRejectedTimestamp: { type: Date },
+    workerAssignmentTimestamp: { type: Date },
+    deadlineTimestamp: { type: Date },
+    resolutionTimestamp: { type: Date },
+    escalationLevel: { type: Number, default: 0 },
+    escalationPriority: {
+      type: String,
+      enum: ["Low", "Medium", "High"],
+      default: "Low"
+    },
+    district: { type: String },
     priorityScore: { type: Number, default: 0 },
-    escalationPriority: { type: String, enum: ["NORMAL", "HIGH", "CRITICAL"], default: "NORMAL" },
-    clusterId: { type: Schema.Types.ObjectId, ref: "IssueCluster" }
+    resolutionQualityVerifiedBy: { type: Schema.Types.ObjectId, ref: "Admin" },
+    resolutionVerificationTimestamp: { type: Date },
+    overdueStatus: { type: Boolean, default: false },
+    workflowStage: {
+      type: String,
+      enum: ["SUBMITTED", "ROUTED_TO_DEPARTMENT", "ASSIGNED_TO_WORKER", "WORKER_ACCEPTED", "IN_PROGRESS", "AWAITING_VERIFICATION", "COMPLETED"],
+      default: "SUBMITTED",
+    },
+    isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
 
-IssueSchema.index({ "location.latitude": 1, "location.longitude": 1 });
-IssueSchema.index({ "location.coordinates": "2dsphere" });
-IssueSchema.index({ status: 1 });
+IssueSchema.pre("save", function (this: IssueDocument, next) {
+  // PART 2: Pothole Validation & Scoring
+  if (this.issueType === "Life-Threatening Potholes" && this.dangerMetrics) {
+    const { diameterCm = 0, depthCm = 0, isOnMainRoad = false } = this.dangerMetrics as any;
+
+    // Severity Score Calculation
+    let score = (diameterCm * 1.5) + (depthCm * 2.5);
+    if (isOnMainRoad) score += 30;
+
+    (this.dangerMetrics as any).autoSeverityScore = score;
+    (this.dangerMetrics as any).isLifeThreatening = score >= 60;
+
+    // PART 13: Maintenance vs Emergency Queue
+    this.queueType = score >= 60 ? "emergency" : "maintenance";
+    if (score < 60) {
+      this.status = "Pending"; // Maintenance queue triage
+    }
+  }
+
+  // PART 12: Emergency Infrastructure Escalation
+  const emergencyCategories = ["Traffic Light Failures", "Burst Water Pipes", "Power Outage", "Bridge Damage"];
+  if (emergencyCategories.includes(this.issueType)) {
+    this.severity = "Critical";
+    this.priorityScore = (this.priorityScore || 0) + 100;
+  }
+
+  // PART 7: Issue Reputation Priority Score Calculation
+  let basePriority = 0;
+  switch (this.severity) {
+    case "Critical": basePriority = 100; break;
+    case "High": basePriority = 50; break;
+    case "Medium": basePriority = 20; break;
+    default: basePriority = 5;
+  }
+
+  const voteWeight = (this.upvotes?.length || 0) * 2;
+  const overdueWeight = this.timeline?.isOverdue ? 40 : 0;
+
+  this.priorityScore = basePriority + voteWeight + overdueWeight;
+
+  // PART 12: Dumping Defaults
+  if (this.issueType === "Illegal Dumping Sites" && !this.cleanupStage) {
+    this.cleanupStage = "Scheduled";
+  }
+
+  next();
+});
+
+IssueSchema.index({ location: "2dsphere" });
+IssueSchema.index({ deadlineTimestamp: 1 });
 IssueSchema.index({ assignedDepartment: 1 });
-IssueSchema.index({ priorityScore: -1 });
-IssueSchema.index({ createdAt: -1 });
+IssueSchema.index({ severity: 1 });
 
 export const LocationModel = model("Location", locationSchema);
 

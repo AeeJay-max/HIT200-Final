@@ -15,15 +15,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.connectDB = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 require("dotenv/config");
-const DATABASE_URL = process.env.DATABASE_URL || "";
 const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
-    console.log("Using MongoDB URL:", process.env.DATABASE_URL);
+    const url = process.env.DATABASE_URL;
+    if (!url) {
+        throw new Error("DATABASE_URL is not defined in environment variables");
+    }
+    console.log("Attempting to connect to MongoDB...");
     try {
-        yield mongoose_1.default.connect(DATABASE_URL);
-        console.log("Connected to DB !");
+        yield mongoose_1.default.connect(url);
+        console.log("Connected to DB successfully!");
     }
     catch (err) {
-        console.error("DB connection error:", err);
+        console.error("Mongoose connection error:", err);
+        throw err; // Rethrow so index.ts knows it failed
     }
 });
 exports.connectDB = connectDB;

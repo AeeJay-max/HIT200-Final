@@ -42,14 +42,22 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getIssues = exports.createIssue = void 0;
+exports.getServiceOutages = exports.getPublicSchedule = exports.getVotes = exports.getIssueTrackingStatus = exports.assignDepartmentAdmin = exports.assignWorker = exports.getPublicAnalytics = exports.updateDumpingStage = exports.voteIssue = exports.upvoteIssue = exports.getIssues = exports.createIssue = void 0;
 const issue_model_1 = require("../models/issue.model");
 const multimedia_model_1 = require("../models/multimedia.model");
+const department_model_1 = require("../models/department.model");
+const department_1 = require("../utils/department");
+const admin_model_1 = require("../models/admin.model");
+const worker_model_1 = require("../models/worker.model");
+const duplicateDetection_service_1 = require("../services/duplicateDetection.service");
+const issueVote_model_1 = require("../models/issueVote.model");
+const notification_controller_1 = require("./notification.controller");
+const audit_service_1 = require("../services/audit.service");
+const trustScore_service_1 = require("../services/trustScore.service");
 const createIssue = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const files = req.files || [];
-        const { title = "Untitled", description, location, issueType } = req.body;
-        // location stuff
+        const { title = "Untitled", description, location, issueType, severity } = req.body;
         let parsedLocation = location;
         if (typeof location === "string") {
             try {
@@ -60,30 +68,50 @@ const createIssue = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                 return;
             }
         }
-        if (!title ||
-            !description ||
-            !parsedLocation ||
-            !parsedLocation.latitude ||
-            !parsedLocation.longitude ||
-            !issueType) {
-            res.status(400).json({ message: "Please fill all the required fields " });
+        if (!title || !description || !parsedLocation || !parsedLocation.latitude || !parsedLocation.longitude || !issueType) {
+            res.status(400).json({ message: "Please fill all the required fields" });
+            return;
+        }
+        // Duplicate detection (PART 11: Cluster Intelligence)
+        const nearbyIssues = yield (0, duplicateDetection_service_1.findNearbySimilarIssue)(parsedLocation.latitude, parsedLocation.longitude, issueType);
+        if (nearbyIssues && nearbyIssues.length > 0) {
+            res.status(409).json({
+                message: "Duplicate Cluster Detected",
+                suggestion: "This issue has already been reported nearby by other citizens.",
+                duplicates: nearbyIssues.map(i => ({ id: i._id, title: i.title }))
+            });
             return;
         }
         const existingIssue = yield issue_model_1.IssueModel.findOne({ title });
         if (existingIssue) {
-            res
-                .status(400)
-                .json({ message: " Issue with this title already exists" });
+            res.status(400).json({ message: "Issue with this title already exists" });
             return;
         }
+        // Automatic Department Routing
+        const deptString = (0, department_1.getDepartmentForIssueCategory)(issueType);
+        let deptId = null;
+        if (deptString) {
+            let deptDoc = yield department_model_1.DepartmentModel.findOne({ name: deptString });
+            if (!deptDoc) {
+                // Create auto if missing for demo/ease
+                deptDoc = yield department_model_1.DepartmentModel.create({ name: deptString });
+            }
+            deptId = deptDoc._id;
+        }
+        // SLA Deadline
+        const deadlineTimestamp = (0, department_1.calculateSlaDeadline)(issueType);
         const issue = yield issue_model_1.IssueModel.create({
-            citizenId: req.citizenId, // Adapt as per your auth
+            citizenId: req.citizenId,
             issueType,
+            severity: severity || "Low",
             title,
             description,
             location: parsedLocation,
             status: "Reported",
-            multimediaId: req.multimediaId,
+            workflowStage: "SUBMITTED",
+            assignedDepartment: deptId,
+            deadlineTimestamp,
+            dangerMetrics: req.body.dangerMetrics || undefined,
         });
         const mediaDocs = yield Promise.all(files.map((file) => multimedia_model_1.MultimediaModel.create({
             issueID: issue._id,
@@ -91,10 +119,6 @@ const createIssue = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             url: file.path,
             filename: file.originalname,
         })));
-        console.log("Response body:", {
-            message: "Issue created",
-            media: mediaDocs,
-        });
         res.status(200).json({ message: "Issue created", issue, media: mediaDocs });
     }
     catch (error) {
@@ -105,44 +129,327 @@ const createIssue = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
 exports.createIssue = createIssue;
 const getIssues = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const adminId = req.adminId; // Use admin context to filter
         let matchQuery = {};
+        const adminId = req.adminId; // If called by Admin
         if (adminId) {
-            const { AdminModel } = yield Promise.resolve().then(() => __importStar(require("../models/admin.model")));
-            const { getCategoriesForDepartment } = yield Promise.resolve().then(() => __importStar(require("../utils/department")));
-            const adminReq = yield AdminModel.findById(adminId).lean();
+            const adminReq = yield admin_model_1.AdminModel.findById(adminId).lean();
             if (adminReq) {
-                const allowedCategories = getCategoriesForDepartment(adminReq.department);
-                if (allowedCategories.length > 0) {
-                    matchQuery.issueType = { $in: allowedCategories };
+                // RBAC check: Main admins see all, Dept Admins see only their Dept categories
+                if (adminReq.role !== "MAIN_ADMIN") {
+                    const allowedCategories = (0, department_1.getCategoriesForDepartment)(adminReq.department);
+                    if (allowedCategories.length > 0) {
+                        matchQuery.issueType = { $in: allowedCategories };
+                    }
                 }
             }
         }
         const issues = yield issue_model_1.IssueModel.find(matchQuery)
-            .populate("citizenId", "fullName")
+            .populate("citizenId", "fullName email")
+            .populate("assignedDepartment", "name")
+            .populate("workerAssignedToFix", "fullName")
+            .sort({ severity: 1, upvotes: -1 })
             .lean();
         const issuesWithMedia = yield Promise.all(issues.map((issue) => __awaiter(void 0, void 0, void 0, function* () {
             var _a;
             const media = yield multimedia_model_1.MultimediaModel.find({ issueID: issue._id });
-            return {
-                _id: issue._id,
-                title: issue.title,
-                description: issue.description,
-                type: issue.issueType,
-                location: issue.location, //  send only address
-                reportedBy: ((_a = issue.citizenId) === null || _a === void 0 ? void 0 : _a.fullName) || "Anonymous",
-                reportedAt: issue.createdAt,
-                image: media.length > 0 ? media[0].url : null,
-                status: issue.status,
-            };
+            return Object.assign(Object.assign({}, issue), { reportedBy: ((_a = issue.citizenId) === null || _a === void 0 ? void 0 : _a.fullName) || "Anonymous", image: media.length > 0 ? media[0].url : null, media: media.map(m => m.url) });
         })));
         res.json({ issues: issuesWithMedia });
     }
     catch (err) {
         console.error("Error fetching issues:", err);
-        res.status(500).json({
-            message: "Something went wrong",
-        });
+        res.status(500).json({ message: "Something went wrong" });
     }
 });
 exports.getIssues = getIssues;
+const upvoteIssue = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const citizenId = req.citizenId;
+        if (!citizenId) {
+            res.status(401).json({ message: "Unauthorized. Only citizens can upvote." });
+            return;
+        }
+        const issue = yield issue_model_1.IssueModel.findById(id);
+        if (!issue) {
+            res.status(404).json({ message: "Issue not found" });
+            return;
+        }
+        if (issue.upvotes && issue.upvotes.includes(citizenId)) {
+            res.status(400).json({ message: "You have already upvoted this issue" });
+            return;
+        }
+        issue.upvotes = issue.upvotes || [];
+        issue.upvotes.push(citizenId);
+        // Auto-escalation threshold
+        if (issue.upvotes.length > 50 && issue.severity !== "Critical") {
+            issue.severity = "Critical";
+            issue.emergencyEscalation = true;
+        }
+        yield issue.save();
+        res.json({ message: "Issue upvoted", upvotes: issue.upvotes.length });
+    }
+    catch (error) {
+        console.error("Error upvoting issue:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+exports.upvoteIssue = upvoteIssue;
+const voteIssue = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const { weight } = req.body;
+        const citizenId = req.citizenId;
+        if (!citizenId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+        const vote = yield issueVote_model_1.IssueVoteModel.findOneAndUpdate({ userId: citizenId, issueId: id }, { voteWeight: weight || 1, timestamp: new Date() }, { upsert: true, new: true });
+        // Sync upvotes array for legacy sorting
+        yield issue_model_1.IssueModel.findByIdAndUpdate(id, { $addToSet: { upvotes: citizenId } });
+        res.status(200).json({ success: true, vote });
+    }
+    catch (error) {
+        console.error("Error voting:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+exports.voteIssue = voteIssue;
+const updateDumpingStage = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const { cleanupStage } = req.body;
+        const adminId = req.adminId;
+        const issue = yield issue_model_1.IssueModel.findById(id);
+        if (!issue || issue.issueType !== "Illegal Dumping Sites") {
+            res.status(400).json({ message: "Invalid issue for dumping stage updates" });
+            return;
+        }
+        const oldStage = issue.cleanupStage;
+        issue.cleanupStage = cleanupStage;
+        const oldStatus = issue.status;
+        if (cleanupStage === "Verified") {
+            issue.status = "Closed";
+        }
+        else if (cleanupStage === "Cleared") {
+            issue.status = "Resolved (Unverified)";
+        }
+        yield issue.save();
+        if (issue.citizenId) {
+            yield (0, trustScore_service_1.updateCitizenTrustScore)(issue.citizenId.toString());
+        }
+        yield (0, audit_service_1.logAction)({
+            actorId: adminId || req.workerId,
+            actorRole: adminId ? "ADMIN" : "WORKER",
+            actionType: "STATUS_CHANGE",
+            targetEntity: "ISSUE",
+            targetId: issue._id,
+            oldValue: { stage: oldStage, status: oldStatus },
+            newValue: { stage: cleanupStage, status: issue.status },
+            ipAddress: req.ip
+        });
+        res.json({ message: "Dumping stage updated", issue });
+    }
+    catch (error) {
+        console.error("Error updating dumping stage:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+exports.updateDumpingStage = updateDumpingStage;
+const getPublicAnalytics = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const totalIssues = yield issue_model_1.IssueModel.countDocuments();
+        const resolvedIssues = yield issue_model_1.IssueModel.countDocuments({ status: { $in: ["Resolved", "Resolved (Unverified)", "Closed"] } });
+        const inProgressIssues = yield issue_model_1.IssueModel.countDocuments({ status: { $in: ["In Progress", "Worker Assigned"] } });
+        const byType = yield issue_model_1.IssueModel.aggregate([
+            { $group: { _id: "$issueType", count: { $sum: 1 } } }
+        ]);
+        res.status(200).json({
+            success: true,
+            stats: {
+                totalIssues,
+                resolvedIssues,
+                inProgressIssues,
+                byType
+            }
+        });
+    }
+    catch (error) {
+        console.error("Error fetching public analytics:", error);
+        res.status(500).json({ success: false, message: "Server Error" });
+    }
+});
+exports.getPublicAnalytics = getPublicAnalytics;
+const assignWorker = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const { workerId, departmentId } = req.body;
+        const adminId = req.adminId;
+        const adminReq = yield admin_model_1.AdminModel.findById(adminId);
+        if (!adminReq || adminReq.role !== "DEPARTMENT_ADMIN") {
+            res.status(403).json({ message: "Forbidden: Only Department Admins can assign workers." });
+            return;
+        }
+        const worker = yield worker_model_1.WorkerModel.findById(workerId);
+        // Assuming adminReq.department is a string that might represent the ObjectID or the department name. We'll toString() all logic.
+        if (!worker || worker.department.toString() !== departmentId) {
+            res.status(400).json({ message: "Worker does not belong to the selected department." });
+            return;
+        }
+        const issue = yield issue_model_1.IssueModel.findById(id);
+        if (!issue) {
+            res.status(404).json({ message: "Issue not found" });
+            return;
+        }
+        const oldWorker = issue.workerAssignedToFix;
+        issue.workerAssignedToFix = workerId;
+        issue.assignedDepartment = worker.department;
+        issue.departmentAdminAssignedBy = adminId;
+        issue.workerAssignmentTimestamp = new Date();
+        // Work must begin within 48 hours
+        issue.deadlineTimestamp = new Date(Date.now() + 48 * 60 * 60 * 1000);
+        if (!issue.timeline) {
+            issue.timeline = { reportedAt: new Date(), isOverdue: false };
+        }
+        issue.timeline.assignedAt = new Date();
+        const oldStatus = issue.status;
+        issue.status = "Worker Assigned";
+        issue.workflowStage = "ASSIGNED_TO_WORKER";
+        yield issue.save();
+        // log IssueStatusHistory entry
+        const { IssueStatusHistoryModel } = yield Promise.resolve().then(() => __importStar(require("../models/issueStatusHistory.model")));
+        yield IssueStatusHistoryModel.create({
+            issueID: issue._id,
+            status: "ASSIGNED_TO_WORKER",
+            changedBy: adminId,
+        });
+        yield (0, audit_service_1.logAction)({
+            actorId: adminId,
+            actorRole: "ADMIN",
+            actionType: "ASSIGNMENT",
+            targetEntity: "ISSUE",
+            targetId: issue._id,
+            oldValue: { workerId: oldWorker, status: oldStatus },
+            newValue: { workerId, status: "Worker Assigned", workflowStage: "ASSIGNED_TO_WORKER" },
+            ipAddress: req.ip
+        });
+        // PART 11: Notification triggers. NOTE: sendTargetedNotification handles email, socket and doc trigger automatically
+        yield (0, notification_controller_1.sendTargetedNotification)(workerId, "New Assignment", `You have been assigned to issue ${issue.title}`, "assignment");
+        if (issue.citizenId) {
+            yield (0, notification_controller_1.sendTargetedNotification)(issue.citizenId.toString(), "Worker Assigned", `A worker has been assigned to fix your reported issue: ${issue.title}`, "status_update");
+        }
+        res.status(200).json(issue);
+    }
+    catch (error) {
+        console.error("Error assigning worker:", error);
+        res.status(500).json({ message: "Failed to assign worker" });
+    }
+});
+exports.assignWorker = assignWorker;
+const assignDepartmentAdmin = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const { adminId, departmentId } = req.body;
+        const mainAdminId = req.adminId;
+        const issue = yield issue_model_1.IssueModel.findById(id);
+        if (!issue) {
+            res.status(404).json({ message: "Issue not found" });
+            return;
+        }
+        issue.departmentAdminAssignedBy = adminId;
+        issue.assignedDepartment = departmentId;
+        issue.deadlineTimestamp = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24hr to assign worker
+        if (!issue.timeline) {
+            issue.timeline = { reportedAt: new Date(), isOverdue: false };
+        }
+        issue.timeline.assignedAt = new Date();
+        issue.status = "Pending"; // Or specialized status
+        yield issue.save();
+        // Notification for Dept Admin
+        yield (0, notification_controller_1.sendTargetedNotification)(adminId, "Issue Assignment", `Main Admin assigned you an issue for department supervision.`, "assignment");
+        res.status(200).json(issue);
+    }
+    catch (error) {
+        console.error("Error assigning dept admin:", error);
+        res.status(500).json({ message: "Failed to assign department admin" });
+    }
+});
+exports.assignDepartmentAdmin = assignDepartmentAdmin;
+const getIssueTrackingStatus = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        const issue = yield issue_model_1.IssueModel.findById(req.params.id)
+            .populate("assignedDepartment", "name")
+            .populate("departmentAdminAssignedBy", "fullName lastName")
+            .populate("workerAssignedToFix", "fullName lastName")
+            .lean();
+        if (!issue) {
+            res.status(404).json({ message: "Not found" });
+            return;
+        }
+        const progressMap = {
+            'Reported': 10,
+            'Worker Assigned': 30,
+            'In Progress': 60,
+            'Resolved (Unverified)': 85,
+            'Resolved': 100,
+            'Closed': 100
+        };
+        res.status(200).json({
+            timeline: issue.timeline,
+            department: issue.assignedDepartment,
+            departmentAdmin: issue.departmentAdminAssignedBy,
+            worker: issue.workerAssignedToFix,
+            progressPercentage: progressMap[issue.status || ''] || 0,
+            expectedCompletionDate: issue.deadlineTimestamp,
+            isOverdue: (_a = issue.timeline) === null || _a === void 0 ? void 0 : _a.isOverdue,
+            violationStage: issue.violationStage,
+            delayDuration: issue.delayDuration
+        });
+    }
+    catch (error) {
+        console.error("Error fetching tracking:", error);
+        res.status(500).json({ message: "Failed to get tracking info" });
+    }
+});
+exports.getIssueTrackingStatus = getIssueTrackingStatus;
+const getVotes = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const votes = yield issueVote_model_1.IssueVoteModel.find({ issueId: id }).populate("userId", "fullName");
+        res.status(200).json({ success: true, votes });
+    }
+    catch (error) {
+        console.error("Error fetching votes:", error);
+        res.status(500).json({ success: false, message: "Fetch failed" });
+    }
+});
+exports.getVotes = getVotes;
+const getPublicSchedule = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const issues = yield issue_model_1.IssueModel.find({ status: { $nin: ["Resolved", "Closed", "Rejected"] } })
+            .select("title severity escalationLevel timeline createdAt queueType")
+            .sort({ escalationLevel: -1, "timeline.reportedAt": 1 })
+            .limit(50);
+        res.json({ success: true, schedule: issues });
+    }
+    catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+exports.getPublicSchedule = getPublicSchedule;
+const getServiceOutages = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const issues = yield issue_model_1.IssueModel.find({
+            issueType: { $in: ["Power Outage", "Water Supply"] },
+            status: { $nin: ["Resolved", "Closed", "Rejected"] }
+        })
+            .select("title severity timeline createdAt location queueType")
+            .sort({ "timeline.reportedAt": -1 });
+        res.json({ success: true, outages: issues });
+    }
+    catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+exports.getServiceOutages = getServiceOutages;

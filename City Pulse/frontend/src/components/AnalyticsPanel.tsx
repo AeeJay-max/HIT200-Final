@@ -1,221 +1,115 @@
-import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { VITE_BACKEND_URL } from "../config/config";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { toast } from "sonner";
 import Player from "lottie-react";
 import starloader from "../assets/animations/starloder.json";
-import RadiusSelector from "./RadiusSelector";
-import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    Legend,
-    ResponsiveContainer,
-    PieChart,
-    Pie,
-    Cell
-} from "recharts";
+import DepartmentResponseTimeChart from "./DepartmentResponseTimeChart";
+import WorkerPerformanceChart from "./WorkerPerformanceChart";
 
-const AnalyticsPanel = React.memo(function AnalyticsPanel() {
-    const token = localStorage.getItem("auth_token");
-    const [radiusPayload, setRadiusPayload] = useState<any>(null);
+export default function AnalyticsPanel() {
+    const [data, setData] = useState<any>(null);
+    const [districts, setDistricts] = useState<any[]>([]);
 
-    const { data: deptPerf } = useQuery({
-        queryKey: ["department-performance"],
-        queryFn: async () => {
-            const res = await fetch(`${VITE_BACKEND_URL}/api/v1/analytics/department-performance`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            const d = await res.json();
-            return d.data || [];
-        }
-    });
+    useEffect(() => {
+        // Main Admin Analytics
+        fetch(`${VITE_BACKEND_URL}/api/v1/admin/analytics`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` }
+        })
+            .then((res) => res.json())
+            .then((json) => {
+                if (json.success) setData(json.data);
+                else setData(null);
+            })
+            .catch(() => toast.error("Failed to load analytics"));
 
-    const { data: transparency } = useQuery({
-        queryKey: ["public-transparency"],
-        queryFn: async () => {
-            const res = await fetch(`${VITE_BACKEND_URL}/api/v1/analytics/transparency`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            const d = await res.json();
-            return d.data || null;
-        }
-    });
+        // District Analytics
+        fetch(`${VITE_BACKEND_URL}/api/v1/analytics/districts`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` }
+        })
+            .then((res) => res.json())
+            .then((json) => {
+                if (json.success) setDistricts(json.districts || []);
+            })
+            .catch(() => { });
+    }, []);
 
-    const { data: radiusData, isLoading: radiusLoading } = useQuery({
-        queryKey: ["radius-analytics", radiusPayload],
-        queryFn: async () => {
-            if (!radiusPayload) return null;
-            const queryParams = new URLSearchParams({
-                lat: radiusPayload.centerLatitude,
-                lng: radiusPayload.centerLongitude,
-                radius: radiusPayload.radiusKm,
-            });
-            const res = await fetch(`${VITE_BACKEND_URL}/api/v1/analytics/radius?${queryParams.toString()}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            const d = await res.json();
-            return d.data || [];
-        },
-        enabled: !!radiusPayload
-    });
-
-    const { data: escalationsData } = useQuery({
-        queryKey: ["escalations"],
-        queryFn: async () => {
-            const res = await fetch(`${VITE_BACKEND_URL}/api/v1/analytics/escalations`, { headers: { Authorization: `Bearer ${token}` } });
-            const d = await res.json();
-            return d.escalations || [];
-        }
-    });
-
-    const { data: workerPerf } = useQuery({
-        queryKey: ["worker-perf"],
-        queryFn: async () => {
-            const res = await fetch(`${VITE_BACKEND_URL}/api/v1/analytics/worker-performance`, { headers: { Authorization: `Bearer ${token}` } });
-            const d = await res.json();
-            // Map workerName to a shorter string if needed or just use it
-            return d.performance || [];
-        }
-    });
-
-    const { data: districtPerf } = useQuery({
-        queryKey: ["district-perf"],
-        queryFn: async () => {
-            const res = await fetch(`${VITE_BACKEND_URL}/api/v1/analytics/district-performance`, { headers: { Authorization: `Bearer ${token}` } });
-            const d = await res.json();
-            return d.performance || [];
-        }
-    });
+    if (!data) return <div className="flex justify-center p-8"><Player autoplay loop animationData={starloader} style={{ height: 100, width: 100 }} /></div>;
 
     return (
-        <div className="space-y-6 mt-6 p-2">
-            <RadiusSelector onSearch={setRadiusPayload} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 p-2">
+            <DepartmentResponseTimeChart />
+            <WorkerPerformanceChart />
+            <Card>
+                <CardHeader><CardTitle>Issues by Status</CardTitle></CardHeader>
+                <CardContent>
+                    <div className="space-y-4">
+                        {data.byStatus?.map((s: any) => (
+                            <div key={s._id} className="flex justify-between items-center bg-gray-50 p-3 rounded border">
+                                <span className="font-medium text-gray-700">{s._id}</span>
+                                <span className="text-xl font-bold text-blue-600">{s.count}</span>
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
 
-            {radiusLoading && <div className="flex justify-center p-4">Loading Zone Data...</div>}
-
-            {radiusData && radiusData.length > 0 && (
-                <Card className="border-blue-200 shadow-md">
-                    <CardHeader className="bg-blue-50">
-                        <CardTitle className="text-blue-800">Intelligence Zone Hotspots</CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-6">
-                        <p className="mb-4 text-gray-700">Found clusters inside the selected {radiusPayload.radiusKm}km radius.</p>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {radiusData.map((cluster: any, idx: number) => (
-                                <div key={idx} className="p-3 bg-red-50 border border-red-200 rounded flex items-center justify-between">
-                                    <span className="font-medium truncate mr-2">{cluster._id}</span>
-                                    <span className="font-bold text-red-600 px-2 py-1 bg-red-100 rounded-full text-xs">{cluster.count}</span>
+            <Card>
+                <CardHeader><CardTitle>Issues by Category</CardTitle></CardHeader>
+                <CardContent>
+                    <div className="space-y-4">
+                        {data.byCategory?.map((c: any) => (
+                            <div key={c._id} className="flex flex-col gap-1">
+                                <div className="flex justify-between text-sm font-medium text-gray-600">
+                                    <span>{c._id}</span>
+                                    <span>{c.count}</span>
                                 </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
+                                <div className="w-full bg-gray-200 rounded-full h-2">
+                                    <div className="bg-sky-500 h-2 rounded-full" style={{ width: `${Math.min((c.count / data.totalIssues) * 100, 100)}%` }}></div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                    <CardHeader><CardTitle>Department Response Times (Hours)</CardTitle></CardHeader>
-                    <CardContent className="h-80">
-                        {deptPerf ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={deptPerf} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="_id" />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Bar dataKey="avgResolutionTime" fill="#3b82f6" name="Avg Time (hrs)" />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        ) : <Player autoplay loop animationData={starloader} style={{ height: 100 }} />}
-                    </CardContent>
-                </Card>
+            <Card className="md:col-span-2">
+                <CardHeader><CardTitle className="text-sky-700">District Governance Overview</CardTitle></CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {districts?.map((d: any) => (
+                            <div key={d._id} className="p-4 bg-white border rounded-xl shadow-sm">
+                                <p className="text-xs font-bold text-slate-400 uppercase">{d._id || "Unassigned"}</p>
+                                <p className="text-2xl font-black text-[#0577b7]">{d.totalIssues}</p>
+                                <div className="mt-2 text-[10px] space-y-1">
+                                    <div className="flex justify-between">
+                                        <span>Resolved</span>
+                                        <span className="text-emerald-600 font-bold">{d.resolvedIssues}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span>Priority Avg</span>
+                                        <span className="text-orange-600 font-bold">{Math.round(d.avgPriorityScore || 0)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
 
-                <Card>
-                    <CardHeader><CardTitle>SLA Overview (Timeline Violations)</CardTitle></CardHeader>
-                    <CardContent className="h-80 flex justify-center items-center">
-                        {transparency ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={[
-                                            { name: "On Time", value: transparency.totalIssues - transparency.overdueIssuesCount },
-                                            { name: "Overdue", value: transparency.overdueIssuesCount }
-                                        ]}
-                                        cx="50%" cy="50%" outerRadius={100} fill="#8884d8" dataKey="value" label
-                                    >
-                                        <Cell fill="#10b981" />
-                                        <Cell fill="#ef4444" />
-                                    </Pie>
-                                    <Tooltip />
-                                    <Legend />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        ) : <Player autoplay loop animationData={starloader} style={{ height: 100 }} />}
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader><CardTitle> Escalations (Priority Levels) </CardTitle></CardHeader>
-                    <CardContent className="h-80 flex justify-center items-center">
-                        {escalationsData ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={escalationsData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="_id" />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Bar dataKey="count" fill="#ef4444" name="Escalated Count" />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        ) : <Player autoplay loop animationData={starloader} style={{ height: 100 }} />}
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader><CardTitle> Worker Performance Metrics </CardTitle></CardHeader>
-                    <CardContent className="h-80 flex justify-center items-center">
-                        {workerPerf ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={workerPerf} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="workerName" />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Bar dataKey="performanceRatingScore" fill="#8b5cf6" name="Performance Score" />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        ) : <Player autoplay loop animationData={starloader} style={{ height: 100 }} />}
-                    </CardContent>
-                </Card>
-
-                <Card className="col-span-1 md:col-span-2">
-                    <CardHeader><CardTitle> District Governance Snapshot </CardTitle></CardHeader>
-                    <CardContent className="h-[400px] flex justify-center items-center">
-                        {districtPerf ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={districtPerf} margin={{ top: 20, right: 30, left: 20, bottom: 5 }} layout="vertical">
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis type="number" />
-                                    <YAxis dataKey="_id" type="category" width={150} tickFormatter={(tick) => tick.length > 20 ? tick.substring(0, 20) + "..." : tick} />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Bar dataKey="issuesPerDistrict" fill="#f59e0b" name="Issues" />
-                                    <Bar dataKey="overduePercentage" fill="#dc2626" name="% Overdue" />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        ) : <Player autoplay loop animationData={starloader} style={{ height: 100 }} />}
-                    </CardContent>
-                </Card>
-            </div>
+            <Card className="md:col-span-2">
+                <CardHeader><CardTitle>Top Location Hotspots</CardTitle></CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {data.hotspots?.map((h: any, idx: number) => (
+                            <div key={h._id || idx} className="flex justify-between items-center p-3 bg-red-50 border border-red-100 rounded">
+                                <span className="text-sm truncate mr-2">{h._id || "Unknown Location"}</span>
+                                <span className="font-bold text-red-600 px-2 py-1 bg-red-200 rounded-full text-xs whitespace-nowrap">{h.count} Issues</span>
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
-});
-
-export default AnalyticsPanel;
+}

@@ -1,15 +1,26 @@
 import { Router } from "express";
-import { signupWorker, loginWorker, getDepartmentWorkers, assignDepartmentAdmin, assignWorker, getIssueTracking, updateCleanupStage, getMaintenanceQueue } from "../controllers/worker.controller";
-import { authMiddleware } from "../middlerware/auth.middleware";
+import { authMiddleware, requireRole } from "../middlerware/auth.middleware";
+import { createWorker, getAssignedIssues, assignWorkerToIssue, markIssueResolved, getWorkerProfile, getWorkersByDepartment } from "../controllers/worker.controller";
+import { workerSignup, workerLogin } from "../controllers/workerAuth.controllers";
 
 const router = Router();
-router.post("/workers/signup", signupWorker);
-router.post("/workers/login", loginWorker);
-router.get("/departments/:id/workers", authMiddleware, getDepartmentWorkers);
-router.patch("/issues/:id/assign-worker", authMiddleware, assignWorker);
-router.patch("/issues/:id/assign-department-admin", authMiddleware, assignDepartmentAdmin);
-router.get("/issues/:id/tracking", getIssueTracking);
-router.patch("/issues/:id/update-cleanup-stage", authMiddleware, updateCleanupStage);
-router.get("/issues/maintenance-queue", authMiddleware, getMaintenanceQueue);
+
+// Auth for Workers
+router.post("/workers/signup", authMiddleware, requireRole(["admin"]), workerSignup);
+router.post("/workers/login", workerLogin);
+
+// Listing workers for a department
+router.get("/departments/:id/workers", authMiddleware, getWorkersByDepartment);
+
+// Admin actions on Workers
+router.post("/worker/create", authMiddleware, requireRole(["admin"]), createWorker);
+router.post("/worker/assign", authMiddleware, requireRole(["admin"]), assignWorkerToIssue);
+
+// Worker Dashboard endpoints
+router.get("/worker/issues", authMiddleware, requireRole(["worker"]), getAssignedIssues);
+router.put("/worker/issues/:issueId/resolve", authMiddleware, requireRole(["worker"]), markIssueResolved);
+
+// Profile
+router.get("/worker/profile/:workerId", authMiddleware, requireRole(["worker"]), getWorkerProfile);
 
 export default router;

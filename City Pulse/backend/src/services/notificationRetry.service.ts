@@ -1,25 +1,54 @@
 import cron from "node-cron";
 import { NotificationModel } from "../models/notification.model";
 import { CitizenModel } from "../models/citizen.model";
+import { AdminModel } from "../models/admin.model";
 import webpush from "web-push";
+import mongoose from "mongoose";
 
-// Simulate saving individual delivery statuses or at least retrying missing ones
-export const initNotificationRetryService = () => {
-    // Run every 10 minutes
+export const initNotificationRetryCron = () => {
+    // PART 5: Retry every 10 minutes
     cron.schedule("*/10 * * * *", async () => {
-        try {
-            console.log("Running Notification Delivery Retry Service...");
+        if (mongoose.connection.readyState !== 1) {
+            console.warn("Skipping notification retry: Database not connected.");
+            return;
+        }
+        console.log("Running Notification Retry Service...");
 
-            // In a real implementation this would fetch { deliveryStatus: "failed" }
-            // For now, it's a structural mock demonstrating how we inject the retry logic
-            const failedBroadcasts = await NotificationModel.find({ type: "BROADCAST", createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } }).limit(5);
+        const failedNotifications = await NotificationModel.find({
+            deliveryStatus: { $in: ["failed", "pending"] },
+            retryCount: { $lt: 5 } // Max 5 retries
+        });
 
-            // Retry logic
-            for (const broadcast of failedBroadcasts) {
-                // re-emit
+        for (const notification of failedNotifications) {
+            try {
+                notification.deliveryStatus = "retrying";
+                await notification.save();
+
+                if (notification.recipientId) {
+                    // Targeted retry
+                    const user = await CitizenModel.findById(notification.recipientId) ||
+                        await AdminModel.findById(notification.recipientId);
+
+                    if (user?.pushSubscription) {
+                        await webpush.sendNotification(
+                            user.pushSubscription as any,
+                            JSON.stringify({
+                                title: notification.title,
+                                message: notification.message,
+                                type: notification.type
+                            })
+                        );
+                    }
+                }
+
+                notification.deliveryStatus = "sent";
+                await notification.save();
+            } catch (error) {
+                notification.deliveryStatus = "failed";
+                notification.retryCount += 1;
+                await notification.save();
+                console.error(`Retry failed for notification ${notification._id}:`, error);
             }
-        } catch (error) {
-            console.error("Error in Notification Retry Service:", error);
         }
     });
 };

@@ -4,8 +4,7 @@ import { LogIn, LogOut, Shield, LayoutDashboard, Bell } from "lucide-react";
 import logo from '../assets/logo2.png';
 import { useAuth } from "../contexts/AuthContext.tsx";
 import { ThemeToggle } from "./ThemeToggle.tsx";
-import { useQuery } from "@tanstack/react-query";
-import { VITE_BACKEND_URL } from "../config/config";
+import { useNotifications } from "../contexts/NotificationContext.tsx";
 
 type HeaderProps = {
   onFeaturesClick?: () => void;
@@ -14,24 +13,7 @@ type HeaderProps = {
 
 const Header: React.FC<HeaderProps> = () => {
   const { user, logout } = useAuth();
-
-  const { data: notifications } = useQuery({
-    queryKey: ["notifications_badge"],
-    queryFn: async () => {
-      const token = localStorage.getItem("auth_token");
-      if (!token || !user) return [];
-      const endpoint = user.role === "admin" ? "admin/notifications" : "citizen/notifications";
-      const res = await fetch(`${VITE_BACKEND_URL}/api/v1/${endpoint}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
-      return data.notifications || [];
-    },
-    refetchInterval: 30000,
-    enabled: !!user,
-  });
-
-  const unreadCount = notifications?.filter((n: any) => !n.isRead).length || 0;
+  const { unreadCount } = useNotifications();
 
   const handleLogout = () => {
     logout();
@@ -69,11 +51,21 @@ const Header: React.FC<HeaderProps> = () => {
             <ThemeToggle />
             {user ? (
               <>
+                <Link to="/notifications">
+                  <Button variant="ghost" size="sm" className="relative p-2">
+                    <Bell className="h-5 w-5 text-slate-500 hover:text-blue-600" />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-0 right-0 h-4 w-4 bg-red-600 text-white text-[10px] grid place-items-center rounded-full font-bold">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </Button>
+                </Link>
                 <span className="text-sm text-muted-foreground hidden sm:block">
                   Welcome,{" "}
                   {user?.fullName ? user.fullName.split(" ")[0] : "Guest"}!
                 </span>
-                <Link to={user.role === "citizen" ? "/citizen" : "/admin"}>
+                <Link to={user.role === "citizen" ? "/citizen" : (String(user.role) === "worker" || String(user.role) === "DEPARTMENT_WORKER") ? "/worker" : "/admin"}>
                   <Button
                     variant="outline"
                     size="sm"
@@ -81,16 +73,6 @@ const Header: React.FC<HeaderProps> = () => {
                   >
                     <LayoutDashboard className="h-4 w-4 text-blue-700" />
                     <span className="hidden sm:block">Dashboard</span>
-                  </Button>
-                </Link>
-                <Link to={user.role === "citizen" ? "/citizen/notifications" : "/admin/notifications"} className="relative hidden sm:flex">
-                  <Button variant="outline" size="sm" className="relative flex items-center justify-center px-3">
-                    <Bell className="h-4 w-4 text-blue-700" />
-                    {unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white">
-                        {unreadCount}
-                      </span>
-                    )}
                   </Button>
                 </Link>
                 <Button

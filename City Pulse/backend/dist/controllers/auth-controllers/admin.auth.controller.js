@@ -12,10 +12,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.adminSignin = exports.adminSignup = void 0;
+exports.adminLogout = exports.refreshAdminToken = exports.adminSignin = exports.adminSignup = void 0;
 const admin_model_1 = require("../../models/admin.model");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const refreshToken_model_1 = require("../../models/refreshToken.model");
 const zod_1 = require("zod");
+const crypto_1 = __importDefault(require("crypto"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const signupSchema = zod_1.z.object({
     fullName: zod_1.z.string().min(1, { message: "Full name is required" }).trim(),
@@ -94,12 +96,22 @@ const adminSignin = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             return;
         }
         // Generate JWT token
-        const token = jsonwebtoken_1.default.sign({
-            id: existingUser._id,
-            role: "admin",
-        }, process.env.JWT_PASSWORD, { expiresIn: "1d" });
+        const accessToken = jsonwebtoken_1.default.sign({ id: existingUser._id, role: existingUser.role }, process.env.JWT_PASSWORD, { expiresIn: "15m" });
+        const refreshToken = crypto_1.default.randomBytes(40).toString("hex");
+        yield refreshToken_model_1.RefreshTokenModel.create({
+            token: refreshToken,
+            userId: existingUser._id,
+            userType: "Admin",
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        });
+        res.cookie("refreshToken", refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "strict",
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
         res.json({
-            token,
+            token: accessToken,
             user: {
                 id: existingUser._id,
                 fullName: existingUser.fullName,
@@ -107,9 +119,10 @@ const adminSignin = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                 adminAccessCode: existingUser.adminAccessCode,
                 department: existingUser.department,
                 phonenumber: existingUser.phonenumber,
-                role: "admin",
+                role: existingUser.role,
             },
         });
+        console.log("Admin signed in with refresh token!");
     }
     catch (error) {
         console.error("Error during admin signin:", error);
@@ -119,3 +132,37 @@ const adminSignin = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
     }
 });
 exports.adminSignin = adminSignin;
+const refreshAdminToken = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { refreshToken } = req.cookies;
+        if (!refreshToken) {
+            res.status(401).json({ message: "No refresh token" });
+            return;
+        }
+        const tokenDoc = yield refreshToken_model_1.RefreshTokenModel.findOne({ token: refreshToken, userType: "Admin" });
+        if (!tokenDoc) {
+            res.status(403).json({ message: "Invalid refresh token" });
+            return;
+        }
+        const admin = yield admin_model_1.AdminModel.findById(tokenDoc.userId);
+        if (!admin) {
+            res.status(404).json({ message: "Admin not found" });
+            return;
+        }
+        const newAccessToken = jsonwebtoken_1.default.sign({ id: admin._id, role: admin.role }, process.env.JWT_PASSWORD, { expiresIn: "15m" });
+        res.json({ token: newAccessToken });
+    }
+    catch (error) {
+        res.status(500).json({ message: "Refresh failed" });
+    }
+});
+exports.refreshAdminToken = refreshAdminToken;
+const adminLogout = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { refreshToken } = req.cookies;
+    if (refreshToken) {
+        yield refreshToken_model_1.RefreshTokenModel.deleteOne({ token: refreshToken });
+    }
+    res.clearCookie("refreshToken");
+    res.status(200).json({ message: "Logged out" });
+});
+exports.adminLogout = adminLogout;

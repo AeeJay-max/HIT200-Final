@@ -27,6 +27,26 @@
     --ring: 260 80% 50%;
     --radius: 0.5rem;
   }
+
+  .dark {
+    --background: 0 0% 0%;
+    --foreground: 260 40% 96%;
+    --card: 0 0% 12%;
+    --card-foreground: 260 40% 96%;
+    --popover: 0 0% 12%;
+    --popover-foreground: 260 40% 96%;
+    --primary: 265 85% 70%;
+    --primary-foreground: 245 35% 12%;
+    --secondary: 275 65% 55%;
+    --secondary-foreground: 260 40% 96%;
+    --muted: 245 35% 15%;
+    --muted-foreground: 260 30% 70%;
+    --accent: 280 70% 55%;
+    --accent-foreground: 260 40% 96%;
+    --border: 260 40% 30%;
+    --input: 260 40% 30%;
+    --ring: 260 80% 60%;
+  }
 }
 
 /* ---------------------------------------------------------------
@@ -176,49 +196,4 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-}
-
-/* ---------------------------------------------------------------
-   DISASTER BROADCAST MODE (CRITICAL EMERGENCY OVERRIDE)
----------------------------------------------------------------- */
-body.disaster-mode {
-  background: radial-gradient(circle, #7f1d1d 0%, #450a0a 100%) !important;
-  color: white !important;
-  transition: all 0.5s ease-in-out;
-}
-
-.disaster-mode .bg-white {
-  background-color: #450a0a !important;
-  color: white !important;
-  border-color: #ef4444 !important;
-}
-
-.disaster-mode .bg-white\/70 {
-  background-color: rgba(69, 10, 10, 0.7) !important;
-  color: white !important;
-}
-
-.disaster-mode .text-slate-500,
-.disaster-mode .text-gray-500,
-.disaster-mode .text-gray-700 {
-  color: #fca5a5 !important;
-}
-
-.disaster-mode .civic-gradient {
-  background: #fee2e2 !important;
-  color: #7f1d1d !important;
-}
-
-.disaster-mode .text-\[\#0577b7\],
-.disaster-mode .text-sky-600 {
-  color: #f87171 !important;
-}
-
-.disaster-mode .bg-blue-50 {
-  background-color: #7f1d1d !important;
-  color: white !important;
-}
-
-.disaster-mode .text-blue-800 {
-  color: #fecaca !important;
 }

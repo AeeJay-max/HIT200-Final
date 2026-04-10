@@ -79,16 +79,9 @@ const CitizenProfile = () => {
     }
   };
 
-  const [trustScore, setTrustScore] = useState<number | null>(null);
-
   // Fetch issues reported by this user
   useEffect(() => {
     if (!token) return;
-
-    fetch(`${VITE_BACKEND_URL}/api/v1/citizen/trust-score`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => data.success && setTrustScore(data.trustScore))
-      .catch(console.error);
 
     const fetchMyIssues = async () => {
       try {
@@ -176,13 +169,9 @@ const CitizenProfile = () => {
                   <CardTitle className="text-2xl text-slate-600">
                     Citizen Profile
                   </CardTitle>
-                  <CardDescription className="mb-2">
+                  <CardDescription>
                     Manage your profile and view your reported issues
                   </CardDescription>
-                  <div className="inline-flex items-center space-x-2 bg-green-50 px-3 py-1 rounded-full border border-green-200 shadow-sm mt-1">
-                    <span className="text-xs font-semibold text-green-700">Trust Score:</span>
-                    <span className="text-sm text-green-800 font-bold">{trustScore !== null ? trustScore : "---"}</span>
-                  </div>
                 </div>
               </div>
               <Button
@@ -384,13 +373,6 @@ const CitizenProfile = () => {
                       <Badge className={getStatusColor(issue.status)}>
                         {issue.status}
                       </Badge>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 text-xs mt-2 py-1">
-                      <Badge variant="outline" className="border-red-200 text-red-600 bg-red-50">Priority Score: {(issue as any).priorityScore || 0}</Badge>
-                      {(issue as any).expectedCompletionDeadline && <Badge variant="outline" className="border-orange-200 text-orange-600 bg-orange-50">SLA Due: {new Date((issue as any).expectedCompletionDeadline).toLocaleDateString()}</Badge>}
-                      {(issue as any).assignedDepartment && <Badge variant="outline" className="border-blue-200 text-blue-600 bg-blue-50">Dept: {(issue as any).assignedDepartment?.name || "Assigned"}</Badge>}
-                      {(issue as any).assignedWorker && <Badge variant="outline" className="border-purple-200 text-purple-600 bg-purple-50">Worker: {(issue as any).assignedWorker?.fullName || "Unassigned"}</Badge>}
                     </div>
 
                     {issue.file && (

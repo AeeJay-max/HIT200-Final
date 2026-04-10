@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import {
   Table,
   TableBody,
@@ -34,19 +35,15 @@ import Player from "lottie-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import AnalyticsPanel from "../components/AnalyticsPanel";
 import NotificationSender from "../components/NotificationSender";
-import { useQueryClient } from "@tanstack/react-query";
 import IssueMapView from "../components/IssueMapView";
 import starloader from "../assets/animations/starloder.json";
 import { useLoader } from "../contexts/LoaderContext";
-import { useAuth } from "../contexts/AuthContext";
 
 interface Issues {
   _id: string;
   title: string;
   description: string;
   type: string;
-  assignedDeptAdmin?: string;
-  assignedWorker?: string;
   location: {
     address: string;
     latitude: number;
@@ -65,27 +62,9 @@ const AdminHome = () => {
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [issues, setIssues] = useState<Issues[]>([]);
-  const [workers, setWorkers] = useState<any[]>([]);
+  const [workerForm, setWorkerForm] = useState({ fullName: "", email: "", password: "", phonenumber: "" });
+  const [health, setHealth] = useState<any>(null);
   const { hideLoader } = useLoader();
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
-
-  useEffect(() => {
-    // Part 25 Smart Prefetching
-    queryClient.prefetchQuery({
-      queryKey: ['analyticsData'],
-      queryFn: () => fetch(`${VITE_BACKEND_URL}/api/v1/analytics/performance-dashboard`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` }
-      }).then(res => res.json())
-    });
-
-    queryClient.prefetchQuery({
-      queryKey: ['myNotifications'],
-      queryFn: () => fetch(`${VITE_BACKEND_URL}/api/v1/notifications/my`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` }
-      }).then(res => res.json())
-    });
-  }, [queryClient]);
 
   useEffect(() => {
     const fetchIssues = async () => {
@@ -110,24 +89,47 @@ const AdminHome = () => {
       }
     };
 
-    const fetchWorkers = async () => {
+    fetchIssues();
+
+    const fetchHealth = async () => {
       try {
-        const dept = localStorage.getItem("admin_department");
-        if (dept) {
-          const res = await fetch(`${VITE_BACKEND_URL}/api/v1/departments/${encodeURIComponent(dept)}/workers`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` },
-          });
+        const res = await fetch(`${VITE_BACKEND_URL}/api/v1/health`);
+        if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data)) setWorkers(data);
+          setHealth(data);
+        } else {
+          setHealth(null);
         }
       } catch (err) {
-        console.error("Error fetching workers", err);
+        setHealth(null);
       }
     };
-
-    fetchIssues();
-    fetchWorkers();
+    fetchHealth();
   }, [hideLoader]);
+
+  const handleCreateWorker = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const response = await fetch(`${VITE_BACKEND_URL}/api/v1/worker/create`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+        },
+        body: JSON.stringify(workerForm),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        alert("Worker created successfully!");
+        setWorkerForm({ fullName: "", email: "", password: "", phonenumber: "" });
+      } else {
+        alert(data.message || "Failed to create worker");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("An error occurred");
+    }
+  };
 
   const handleStatusUpdate = async (issueId: string, status: string) => {
     try {
@@ -153,38 +155,6 @@ const AdminHome = () => {
       }
     } catch (error) {
       console.error("Error updating issue status:", error);
-    }
-  };
-
-  const handleAssignWorker = async (issueId: string, workerId: string) => {
-    if (!workerId) return;
-    try {
-      const response = await fetch(
-        `${VITE_BACKEND_URL}/api/v1/issues/${issueId}/assign-worker`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
-          },
-          body: JSON.stringify({ workerId }),
-        }
-      );
-      if (response.ok) {
-        setIssues((prev) =>
-          prev.map((i) =>
-            i._id === issueId
-              ? { ...i, status: "Scheduled", assignedWorker: workerId, assignedDeptAdmin: user?.id } as unknown as Issues
-              : i
-          )
-        );
-        alert("Worker assigned successfully");
-      } else {
-        const data = await response.json();
-        alert(data.message);
-      }
-    } catch (error) {
-      console.error("Error assigning worker:", error);
     }
   };
 
@@ -290,12 +260,24 @@ const AdminHome = () => {
                 Manage and resolve community issues • <span className="font-semibold text-blue-600">Department: {localStorage.getItem("admin_department") || "Fetching..."}</span>
               </p>
             </div>
-            <div className="flex space-x-3">
-              <Link to="/admin/worker-signup">
-                <Button variant="outline" className="text-blue-600 border-blue-600 bg-blue-50 hover:bg-blue-100">
-                  Create Worker
+            <div className="flex items-center gap-4">
+              {localStorage.getItem("admin_role") === "MAIN_ADMIN" && (
+                <Button
+                  variant="destructive"
+                  className="flex items-center space-x-2 shadow-lg animate-pulse"
+                  onClick={async () => {
+                    if (window.confirm("ARE YOU SURE? This sends a system-wide EMERGENCY broadcast to ALL citizens!")) {
+                      await fetch(`${VITE_BACKEND_URL}/api/v1/notifications/disaster-broadcast`, {
+                        method: "POST",
+                        headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` }
+                      });
+                      alert("Disaster broadcast initiated.");
+                    }
+                  }}
+                >
+                  🚀 Disaster Mode
                 </Button>
-              </Link>
+              )}
               <Link to="/admin/profile">
                 <Button
                   variant="outline"
@@ -307,6 +289,20 @@ const AdminHome = () => {
               </Link>
             </div>
           </div>
+
+          {/* PART 15: Health Bar */}
+          {health && (
+            <div className="bg-slate-900 text-white p-2 px-4 rounded-full flex items-center justify-between text-[10px] font-bold tracking-widest uppercase opacity-80">
+              <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" /> System {health.status}</span>
+                <span>Uptime: {Math.floor(health.uptime / 3600)}h</span>
+                <span>DB: {health.dbStatus}</span>
+              </div>
+              <div className="flex gap-2">
+                {health.engines?.map((e: string) => <span key={e} className="bg-slate-700 px-2 py-0.5 rounded">⚙️ {e} Engine</span>)}
+              </div>
+            </div>
+          )}
 
           {/* Statistics Overview */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 ">
@@ -342,11 +338,12 @@ const AdminHome = () => {
           </div>
 
           <Tabs defaultValue="issues" className="w-full">
-            <TabsList className="grid w-full max-w-2xl grid-cols-4 mx-auto mb-8 bg-white/70 dark:bg-gray-500 dark:border-white/10 shadow border">
+            <TabsList className="grid w-full max-w-3xl grid-cols-5 mx-auto mb-8 bg-white/70 dark:bg-gray-500 dark:border-white/10 shadow border">
               <TabsTrigger value="issues">Manage Issues</TabsTrigger>
               <TabsTrigger value="map">Interactive Map</TabsTrigger>
               <TabsTrigger value="analytics">Analytics</TabsTrigger>
               <TabsTrigger value="notifications">Send Alert</TabsTrigger>
+              <TabsTrigger value="workers">Add Worker</TabsTrigger>
             </TabsList>
 
             <TabsContent value="map" className="mt-0">
@@ -359,6 +356,35 @@ const AdminHome = () => {
 
             <TabsContent value="notifications" className="mt-0">
               <NotificationSender />
+            </TabsContent>
+
+            <TabsContent value="workers" className="mt-0">
+              <Card className="max-w-xl mx-auto shadow-md">
+                <CardHeader>
+                  <CardTitle className="text-xl text-sky-700">Register Field Worker</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleCreateWorker} className="space-y-4">
+                    <div>
+                      <label className="text-sm font-medium">Full Name</label>
+                      <Input value={workerForm.fullName} onChange={e => setWorkerForm({ ...workerForm, fullName: e.target.value })} required />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Email Address</label>
+                      <Input type="email" value={workerForm.email} onChange={e => setWorkerForm({ ...workerForm, email: e.target.value })} required />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Temporary Password</label>
+                      <Input type="password" value={workerForm.password} onChange={e => setWorkerForm({ ...workerForm, password: e.target.value })} required />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Phone Number</label>
+                      <Input value={workerForm.phonenumber} onChange={e => setWorkerForm({ ...workerForm, phonenumber: e.target.value })} required />
+                    </div>
+                    <Button type="submit" className="w-full bg-sky-600 hover:bg-sky-700">Create Worker Account</Button>
+                  </form>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="issues" className="mt-0 space-y-8">
@@ -506,83 +532,55 @@ const AdminHome = () => {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2 items-center">
-                            {(!issue.assignedDeptAdmin || issue.assignedDeptAdmin === user?.id || localStorage.getItem("admin_department") === "Main") ? (
-                              <>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" size="sm" className="h-8 text-xs font-semibold whitespace-nowrap">
-                                      Assign
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    {workers.map((w: any) => (
-                                      <button
-                                        key={w._id}
-                                        onClick={() => handleAssignWorker(issue._id, w._id)}
-                                        className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-sm"
-                                      >
-                                        {w.fullName}
-                                      </button>
-                                    ))}
-                                    {workers.length === 0 && (
-                                      <span className="px-4 py-2 text-sm text-gray-500">No workers found</span>
-                                    )}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon">
-                                      <Edit className="h-4 w-4 text-blue-600" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="">
-                                    <button
-                                      onClick={() =>
-                                        handleStatusUpdate(issue._id, "Resolved")
-                                      }
-                                      className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                                    >
-                                      Resolved
-                                    </button>
-                                    <button
-                                      onClick={() =>
-                                        handleStatusUpdate(issue._id, "In Progress")
-                                      }
-                                      className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                                    >
-                                      In Progress
-                                    </button>
-                                    <button
-                                      onClick={() =>
-                                        handleStatusUpdate(issue._id, "Rejected")
-                                      }
-                                      className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                                    >
-                                      Rejected
-                                    </button>
-                                    <button
-                                      onClick={() =>
-                                        handleStatusUpdate(issue._id, "Pending")
-                                      }
-                                      className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                                    >
-                                      Pending
-                                    </button>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleDeleteIssue(issue._id)}
-                                >
-                                  <Trash2 className="h-4 w-4 text-gray-500 " />
+                          <div className="flex justify-end gap-2">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <Edit className="h-4 w-4 text-blue-600" />
                                 </Button>
-                              </>
-                            ) : (
-                              <span className="text-xs text-gray-400 font-medium px-2 shadow-sm rounded-md bg-gray-50 py-1">Locked</span>
-                            )}
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="">
+                                {issue.status === "Resolved (Unverified)" && (
+                                  <button
+                                    onClick={() => handleStatusUpdate(issue._id, "Closed")}
+                                    className="block w-full text-left px-4 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-bold"
+                                  >
+                                    Verify Resolution (Close)
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleStatusUpdate(issue._id, "Resolved")}
+                                  className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                                >
+                                  Resolved
+                                </button>
+                                <button
+                                  onClick={() => handleStatusUpdate(issue._id, "In Progress")}
+                                  className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                                >
+                                  In Progress
+                                </button>
+                                <button
+                                  onClick={() => handleStatusUpdate(issue._id, "Rejected")}
+                                  className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                                >
+                                  Rejected
+                                </button>
+                                <button
+                                  onClick={() => handleStatusUpdate(issue._id, "Pending")}
+                                  className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                                >
+                                  Pending
+                                </button>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteIssue(issue._id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-gray-500 " />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>

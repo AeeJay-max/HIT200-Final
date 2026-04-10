@@ -1,24 +1,45 @@
 // Maps an Admin's department to the Issue categories they have jurisdiction over.
 
 export const DepartmentIssueMapping: Record<string, string[]> = {
-    "Roads": ["Potholes", "Streetlights", "Traffic Lights"],
-    "Water": ["Burst Water Pipes", "Sewer Issues"],
-    "Environment": ["Environmental Issues", "Waste Management"],
-    "Main": ["Potholes", "Burst Water Pipes", "Sewer Issues", "Streetlights", "Traffic Lights", "Other"],
-    // Add fallback or "All" mapping for standard master admins if needed.
+    "Roads Department": ["Life-Threatening Potholes"],
+    "Water Department": ["Burst Water Pipes"],
+    "Sanitation Department": ["Sewer Failures"],
+    "Electrical Department": ["Streetlight Failures"],
+    "Traffic Control Department": ["Traffic Light Failures"],
+    "Environmental Department": ["Illegal Dumping Sites"],
 };
 
-// Helper function to return array of issue types for a department. Returns all if Main or unmapped.
+export const SlaMappingHrs: Record<string, number> = {
+    "Life-Threatening Potholes": 24,
+    "Burst Water Pipes": 12,
+    "Sewer Failures": 18,
+    "Streetlight Failures": 72,
+    "Traffic Light Failures": 12,
+    "Illegal Dumping Sites": 48
+};
+
+// Gets the required Department string based on issue type
+export const getDepartmentForIssueCategory = (category: string): string | null => {
+    const entry = Object.entries(DepartmentIssueMapping).find(([dept, categories]) =>
+        categories.includes(category)
+    );
+    return entry ? entry[0] : null;
+};
+
+// Gets SLA deadline timestamp based on issue type + current time
+export const calculateSlaDeadline = (category: string, createdAt: Date = new Date()): Date => {
+    const hours = SlaMappingHrs[category] || 72; // default 72 if somehow missing
+    return new Date(createdAt.getTime() + hours * 60 * 60 * 1000);
+};
+
+// Helper function to return array of issue types for a department. Returns all if Main Admin.
 export const getCategoriesForDepartment = (department: string): string[] => {
     if (!department) return [];
 
-    // If the admin is globally assigned or we don't strictly map them, maybe they see everything or nothing.
-    // For safety, Main gets all. Unknown departments get an empty array to prevent data leaking.
     if (department.toLowerCase() === "main" || department.toLowerCase() === "admin") {
-        return DepartmentIssueMapping["Main"];
+        return Object.values(DepartmentIssueMapping).flat();
     }
 
-    // Exact match from map
     const mapped = Object.keys(DepartmentIssueMapping).find(
         (key) => key.toLowerCase() === department.toLowerCase()
     );

@@ -1,35 +1,28 @@
-import dotenv from "dotenv";
-dotenv.config({ path: "./.env" });
-
-const requiredEnvVars = [
-  "JWT_SECRET",
-  "MONGO_URI",
-  "CLOUDINARY_CLOUD_NAME",
-  "CLOUDINARY_API_KEY",
-  "CLOUDINARY_API_SECRET",
-  "VAPID_PUBLIC_KEY",
-  "VAPID_PRIVATE_KEY",
-  "VAPID_MAILTO"
-];
-
-for (const envVar of requiredEnvVars) {
-  if (!process.env[envVar]) {
-    console.error(`CRITICAL STARTUP ERROR: Missing required environment variable: ${envVar}`);
-    process.exit(1);
-  }
-}
-
+import "dotenv/config";
 import { connectDB } from "./config/database";
 import app from "./app";
-import { initTimelineService } from "./services/timeline.service";
+import { createServer } from "http";
+import { initializeSocket } from "./utils/socket";
+import { startEscalationCron } from "./utils/cron";
+import { startTimelineEnforcementCron } from "./services/timeline.service";
+import { initNotificationRetryCron } from "./services/notificationRetry.service";
 
-initTimelineService();
+// dotenv.config({ path: "./.env" }); is now handled by import "dotenv/config"
 
 const PORT = process.env.PORT || 3000;
+
+// Wrap express app with an HTTP server to use Socket.io
+const httpServer = createServer(app);
+initializeSocket(httpServer);
+
 connectDB()
   .then(() => {
-    app.listen(PORT, () => {
-      console.log(`Server is running on port : ${PORT}`);
+    httpServer.listen(PORT, () => {
+      console.log(`Server & Real-Time Sync running on port : ${PORT}`);
+      startEscalationCron();
+      startTimelineEnforcementCron();
+      initNotificationRetryCron();
+      console.log("Timeline, Escalation & Notification Retry Cron Engines started.");
     });
   })
   .catch((error) => {

@@ -1,7 +1,9 @@
 import { Request, Response } from "express";
 import { AdminModel } from "../../models/admin.model";
 import jwt from "jsonwebtoken";
+import { RefreshTokenModel } from "../../models/refreshToken.model";
 import { z } from "zod";
+import crypto from "crypto";
 import bcrypt from "bcryptjs";
 
 const signupSchema = z.object({
@@ -107,25 +109,30 @@ export const adminSignin = async (
       return;
     }
 
-    // Generate JWT tokens
+    // Generate JWT token
     const accessToken = jwt.sign(
-      { id: existingUser._id, role: "admin" },
+      { id: existingUser._id, role: existingUser.role },
       process.env.JWT_PASSWORD!,
       { expiresIn: "15m" }
     );
 
-    const refreshToken = jwt.sign(
-      { id: existingUser._id, role: "admin" },
-      process.env.JWT_PASSWORD!,
-      { expiresIn: "7d" }
-    );
+    const refreshToken = crypto.randomBytes(40).toString("hex");
+    await RefreshTokenModel.create({
+      token: refreshToken,
+      userId: existingUser._id,
+      userType: "Admin",
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
 
-    existingUser.refreshToken = refreshToken;
-    await existingUser.save();
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     res.json({
       token: accessToken,
-      refreshToken,
       user: {
         id: existingUser._id,
         fullName: existingUser.fullName,
@@ -133,13 +140,54 @@ export const adminSignin = async (
         adminAccessCode: existingUser.adminAccessCode,
         department: existingUser.department,
         phonenumber: existingUser.phonenumber,
-        role: "admin",
+        role: existingUser.role,
       },
     });
+    console.log("Admin signed in with refresh token!");
   } catch (error) {
     console.error("Error during admin signin:", error);
     res.status(500).json({
       message: "Internal Server Error",
     });
   }
+};
+export const refreshAdminToken = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { refreshToken } = req.cookies;
+    if (!refreshToken) {
+      res.status(401).json({ message: "No refresh token" });
+      return;
+    }
+
+    const tokenDoc = await RefreshTokenModel.findOne({ token: refreshToken, userType: "Admin" });
+    if (!tokenDoc) {
+      res.status(403).json({ message: "Invalid refresh token" });
+      return;
+    }
+
+    const admin = await AdminModel.findById(tokenDoc.userId);
+    if (!admin) {
+      res.status(404).json({ message: "Admin not found" });
+      return;
+    }
+
+    const newAccessToken = jwt.sign(
+      { id: admin._id, role: admin.role },
+      process.env.JWT_PASSWORD!,
+      { expiresIn: "15m" }
+    );
+
+    res.json({ token: newAccessToken });
+  } catch (error) {
+    res.status(500).json({ message: "Refresh failed" });
+  }
+};
+
+export const adminLogout = async (req: Request, res: Response): Promise<void> => {
+  const { refreshToken } = req.cookies;
+  if (refreshToken) {
+    await RefreshTokenModel.deleteOne({ token: refreshToken });
+  }
+  res.clearCookie("refreshToken");
+  res.status(200).json({ message: "Logged out" });
 };

@@ -14,19 +14,9 @@ const AdminSchema = new Schema(
       required: [true],
     },
     department: { type: String, required: true },
+    role: { type: String, enum: ["MAIN_ADMIN", "DEPARTMENT_ADMIN"], default: "DEPARTMENT_ADMIN" },
     adminAccessCode: { type: Number, required: true, unique: true },
-    role: {
-      type: String,
-      enum: ["main_admin", "dept_admin", "dept_worker"],
-      default: "dept_admin",
-      required: true,
-    },
-    assignedIssues: [{ type: Schema.Types.ObjectId, ref: "Issue" }],
-    performanceMetrics: {
-      averageResolutionTime: { type: Number, default: 0 }, // in hours
-      totalResolved: { type: Number, default: 0 },
-    },
-    refreshToken: { type: String, default: null }
+    pushSubscription: { type: Schema.Types.Mixed }, // Web Push Subscription object
   },
   { timestamps: true }
 );

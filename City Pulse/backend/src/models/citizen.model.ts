@@ -16,10 +16,10 @@ const CitizenSchema = new Schema(
       type: String,
       required: [true, "User phone number required"],
     },
-    pushSubscription: { type: Object, default: null },
-    refreshToken: { type: String, default: null },
-    trustScore: { type: Number, default: 50 }, // Starting neutral rating
-    isBlocked: { type: Boolean, default: false }
+    pushSubscription: { type: Schema.Types.Mixed }, // Web Push Subscription object
+    trustScore: { type: Number, default: 100 },
+    successfulReports: { type: Number, default: 0 },
+    fakeReports: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

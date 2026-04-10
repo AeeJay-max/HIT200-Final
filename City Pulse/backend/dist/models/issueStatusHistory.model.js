@@ -10,21 +10,23 @@ const IssueStatusHistorySchema = new mongoose_1.Schema({
     },
     status: {
         type: String,
-        enum: ["Reported", "In Progress", "Resolved", "Rejected", "Pending"],
+        enum: ["Reported", "In Progress", "Resolved", "Rejected", "Pending", "Escalated", "Worker Assigned", "Resolved (Unverified)", "Closed", "SUBMITTED", "ASSIGNED_TO_WORKER"],
         required: true,
     },
     handledBy: {
         type: mongoose_1.Schema.Types.ObjectId,
         ref: "Admin",
-        required: true,
+        required: false,
+    },
+    escalationLevel: {
+        type: Number
     },
     changedAt: {
         type: Date,
         default: Date.now,
     },
     changedBy: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: "Admin",
+        type: mongoose_1.Schema.Types.ObjectId, // Could be Admin or Worker
         required: true,
     },
 }, { timestamps: true });

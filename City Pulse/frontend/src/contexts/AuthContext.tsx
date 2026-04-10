@@ -1,17 +1,18 @@
 import { VITE_BACKEND_URL } from "../config/config";
-import React, {
+import {
   createContext,
   useContext,
   useState,
   useEffect,
   type ReactNode,
+  type FC,
 } from "react";
 
 interface User {
   id: string;
   email: string;
   fullName: string;
-  role: "citizen" | "admin" | "worker";
+  role: "citizen" | "admin" | "worker" | "MAIN_ADMIN" | "DEPARTMENT_ADMIN" | "DEPARTMENT_WORKER";
   phonenumber?: string;
   department?: string;
   adminAccessCode?: string;
@@ -23,10 +24,10 @@ interface AuthContextType {
   login: (
     email: string,
     password: string,
-    role: "citizen" | "admin" | "worker",
+    role: "citizen" | "admin" | "worker" | "MAIN_ADMIN" | "DEPARTMENT_ADMIN" | "DEPARTMENT_WORKER",
     adminAccessCode?: string
   ) => Promise<boolean>;
-  register: (userData: any, role: "citizen" | "admin" | "worker") => Promise<void>;
+  register: (userData: any, role: "citizen" | "admin" | "worker" | "MAIN_ADMIN" | "DEPARTMENT_ADMIN" | "DEPARTMENT_WORKER") => Promise<void>;
   logout: () => void;
   isLoading: boolean;
   updateUserProfile: (updatedData: Partial<User>) => Promise<void>;
@@ -44,7 +45,7 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -52,7 +53,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const fetchProfile = async () => {
     try {
       const token = localStorage.getItem("auth_token");
-      const storedRole = localStorage.getItem("auth_role");
+      const storedRole = localStorage.getItem("auth_role")?.toUpperCase() || "";
       const storedUserId = localStorage.getItem("auth_user_id");
 
       if (!token || !storedRole || !storedUserId) {
@@ -60,16 +61,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
-      if (storedRole === "worker") {
-        // For workers we don't have a strict GET profile endpoint, assume valid if session loaded
-        setUser(JSON.parse(localStorage.getItem("auth_user") || "{}"));
-        return;
+      let endpoint = `citizen/profile`;
+      if (storedRole === "ADMIN" || storedRole === "MAIN_ADMIN" || storedRole === "DEPARTMENT_ADMIN" || storedRole === "DEPT_ADMIN") {
+        endpoint = `admin/profile/${storedUserId}`;
+      } else if (storedRole === "WORKER" || storedRole === "DEPARTMENT_WORKER" || storedRole === "DEPT_WORKER") {
+        endpoint = `worker/profile/${storedUserId}`;
       }
-
-      const endpoint =
-        storedRole === "admin"
-          ? `admin/profile/${storedUserId}`
-          : `citizen/profile/${storedUserId}`;
 
       const response = await fetch(`${VITE_BACKEND_URL}/api/v1/${endpoint}`, {
         headers: {
@@ -81,8 +78,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const result = await response.json();
 
       if (response.ok) {
-        setUser(result);
-        localStorage.setItem("auth_user", JSON.stringify(result));
+        const normalizedUser = {
+          ...result,
+          id: result._id || result.id,
+          role: result.role || storedRole
+        };
+        setUser(normalizedUser);
+        localStorage.setItem("auth_user", JSON.stringify(normalizedUser));
       } else {
         console.error("Failed to fetch profile:", result.message);
       }
@@ -116,12 +118,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (
     email: string,
     password: string,
-    role: "citizen" | "admin" | "worker",
+    role: "citizen" | "admin" | "worker" | "MAIN_ADMIN" | "DEPARTMENT_ADMIN" | "DEPARTMENT_WORKER",
     adminAccessCode?: string
   ) => {
     setIsLoading(true);
     try {
-      const endpoint = role === "admin" ? "admin/signin" : role === "worker" ? "workers/login" : "citizen/signin";
+      let endpoint = "citizen/signin";
+      if (role === "admin") endpoint = "admin/signin";
+      else if (role === "worker") endpoint = "worker/login";
 
       const body: any = { email, password };
 
@@ -155,10 +159,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       const authUser: User = {
-        id: result.user.id,
+        id: result.user.id || result.user._id,
         email: result.user.email,
         fullName: result.user.fullName || "Guest",
-        role: result.user.role,
+        role: result.user.role || (role === "worker" ? "DEPARTMENT_WORKER" : role),
         phonenumber: result.user.phonenumber || "",
         department: result.user.department || "",
         adminAccessCode: result.user.adminAccessCode || "",
@@ -169,13 +173,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       localStorage.setItem("auth_token", result.token);
       localStorage.setItem("auth_user", JSON.stringify(authUser));
+      localStorage.setItem("auth_role", authUser.role);
+      localStorage.setItem("auth_user_id", authUser.id);
+
       if (authUser.department) {
         localStorage.setItem("admin_department", authUser.department);
       }
-
-      import("../utils/push").then(({ subscribeToPush }) => {
-        subscribeToPush(result.token, authUser.role);
-      });
 
       console.log("Auth User After Login:", authUser);
 
@@ -188,10 +191,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const register = async (userData: any, role: "citizen" | "admin" | "worker") => {
+  const register = async (userData: any, role: "citizen" | "admin" | "worker" | "MAIN_ADMIN" | "DEPARTMENT_ADMIN" | "DEPARTMENT_WORKER") => {
     setIsLoading(true);
     try {
-      const endpoint = role === "admin" ? "admin/signup" : role === "worker" ? "workers/signup" : "citizen/signup";
+      const endpoint = role === "admin" ? "admin/signup" : "citizen/signup";
 
       const response = await fetch(`${VITE_BACKEND_URL}/api/v1/${endpoint}`, {
         method: "POST",
@@ -208,6 +211,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       localStorage.setItem("auth_token", result.token);
       localStorage.setItem("auth_user", JSON.stringify(result.user));
+      localStorage.setItem("auth_role", result.user.role);
+      localStorage.setItem("auth_user_id", result.user.id || result.user._id);
     } finally {
       setIsLoading(false);
     }
@@ -226,8 +231,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (!token || !user) throw new Error("User is not authenticated");
       const userId = user.id; // Ensure correct key
 
-      const endpoint =
-        user.role === "admin" ? `admin/${userId}` : `citizen/${userId}`;
+      let endpoint = `citizen/${userId}`;
+      const roleStr = String(user.role).toUpperCase();
+      if (roleStr === "ADMIN" || roleStr === "MAIN_ADMIN" || roleStr === "DEPARTMENT_ADMIN" || roleStr === "DEPT_ADMIN") {
+        endpoint = `admin/${userId}`;
+      } else if (roleStr === "WORKER" || roleStr === "DEPARTMENT_WORKER" || roleStr === "DEPT_WORKER") {
+        endpoint = `worker/${userId}`; // if we have an update endpoint
+      }
 
       const response = await fetch(`${VITE_BACKEND_URL}/api/v1/${endpoint}`, {
         method: "PUT",

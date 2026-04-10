@@ -1,11 +1,22 @@
-import { model, Schema } from "mongoose";
+import { Schema, model, Types } from "mongoose";
 
-const IssueVoteSchema = new Schema(
+interface IIssueVote {
+    userId: Types.ObjectId;
+    issueId: Types.ObjectId;
+    voteWeight: number;
+    timestamp: Date;
+}
+
+const issueVoteSchema = new Schema<IIssueVote>(
     {
         userId: { type: Schema.Types.ObjectId, ref: "Citizen", required: true },
         issueId: { type: Schema.Types.ObjectId, ref: "Issue", required: true },
         voteWeight: { type: Number, default: 1 },
         timestamp: { type: Date, default: Date.now }
-    }
+    },
+    { timestamps: true }
 );
-export const IssueVoteModel = model("IssueVote", IssueVoteSchema);
+
+issueVoteSchema.index({ userId: 1, issueId: 1 }, { unique: true });
+
+export const IssueVoteModel = model<IIssueVote>("IssueVote", issueVoteSchema);

@@ -11,10 +11,9 @@ import {
   updateAdminProfile,
   updateIssueStatus,
   getAnalytics,
+  getRadiusHotspots,
 } from "../controllers/admin.controller";
 import { getIssues } from "../controllers/issues.controllers";
-import { requireRole } from "../middlerware/requireRole";
-import { getAuditLogs } from "../controllers/audit.controller";
 
 const router = Router();
 
@@ -34,17 +33,23 @@ router.put("/admin/issue/:id/status", authMiddleware, updateIssueStatus);
 
 router.delete("/issue/admin/:issueid", authMiddleware, deleteIssueByAdmin);
 
-import { createNotification, sendBroadcast } from "../controllers/notification.controller";
-import { loginLimiter, broadcastLimiter } from "../middlerware/rateLimiters";
+import { createNotification, getNotifications } from "../controllers/notification.controller";
+import { createEmergencyBroadcast, getActiveBroadcasts } from "../controllers/emergencyBroadcast.controller";
+import { createSchedule, getSchedules } from "../controllers/scheduleAnnouncement.controller";
+import { requireRole } from "../middlerware/auth.middleware";
 
-router.post("/admin/signin", loginLimiter, adminSignin);
+router.post("/admin/notifications", authMiddleware, requireRole(["admin"]), createNotification);
+router.get("/admin/notifications", authMiddleware, getNotifications);
 
-router.post("/admin/notifications", authMiddleware, createNotification);
+// Emergency logic
+router.post("/admin/broadcasts", authMiddleware, requireRole(["admin"]), createEmergencyBroadcast);
+router.get("/admin/broadcasts", authMiddleware, getActiveBroadcasts);
 
-router.post("/admin/notifications/broadcast", authMiddleware, broadcastLimiter, sendBroadcast);
+// Schedules
+router.post("/admin/schedules", authMiddleware, requireRole(["admin"]), createSchedule);
+router.get("/admin/schedules", authMiddleware, getSchedules);
 
-router.get("/admin/analytics", authMiddleware, getAnalytics);
-
-router.get("/admin/audit/logs", authMiddleware, requireRole(["MAIN_ADMIN"]), getAuditLogs);
+router.get("/admin/analytics", authMiddleware, requireRole(["admin"]), getAnalytics);
+router.post("/admin/analytics/radius", authMiddleware, requireRole(["admin"]), getRadiusHotspots);
 
 export default router;

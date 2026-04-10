@@ -3,21 +3,26 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './contexts/AuthContext.tsx'
-
-if ('serviceWorker' in navigator && 'PushManager' in window) {
-  window.addEventListener('load', function () {
-    navigator.serviceWorker.register('/service-worker.js').then(function (registration) {
-      console.log('ServiceWorker registration successful with scope: ', registration.scope);
-    }, function (err) {
-      console.log('ServiceWorker registration failed: ', err);
-    });
-  });
-}
+import { NotificationProvider } from './contexts/NotificationContext.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
-      <App />
+      <NotificationProvider>
+        <App />
+      </NotificationProvider>
     </AuthProvider>
   </StrictMode>,
 )
+
+// Service Worker Registration
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then((registration) => {
+      console.log('SW registered: ', registration);
+    }).catch((registrationError) => {
+      console.log('SW registration failed: ', registrationError);
+    });
+  });
+}
+

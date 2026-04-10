@@ -17,5 +17,9 @@ const CitizenSchema = new mongoose_1.Schema({
         type: String,
         required: [true, "User phone number required"],
     },
+    pushSubscription: { type: mongoose_1.Schema.Types.Mixed }, // Web Push Subscription object
+    trustScore: { type: Number, default: 100 },
+    successfulReports: { type: Number, default: 0 },
+    fakeReports: { type: Number, default: 0 },
 }, { timestamps: true });
 exports.CitizenModel = (0, mongoose_1.model)("Citizen", CitizenSchema);

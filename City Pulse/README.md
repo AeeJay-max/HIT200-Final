@@ -67,7 +67,7 @@ Check out the deployed application here:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/AeeJay-max/Civic-issue-reporter-application.git
+   git clone https://github.com/your-username/Civic-issue-reporter-application.git
    cd Civic-issue-reporter-application
 
 2. **Frontend Setup**

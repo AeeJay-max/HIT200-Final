@@ -19,48 +19,47 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ location, onChange }) =
   const marker = useRef<Marker | null>(null);
 
   useEffect(() => {
-    if (map.current) return;
+    if (map.current) return; // initialize map only once
 
-    const reverseGeocode = async (lat: number, lng: number) => {
+    const reverseGeocode = async (lng: number, lat: number) => {
       try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+        );
         const data = await response.json();
-        return data.display_name;
+        return data.display_name || "";
       } catch (error) {
-        console.error("Geocoding failed", error);
+        console.error("Reverse geocoding failed:", error);
         return "";
       }
     };
 
-    const initMap = async (lng: number, lat: number, isAutoDetected = false) => {
+    const initMap = async (lng: number, lat: number) => {
       if (map.current) return;
-
       map.current = new maplibregl.Map({
         container: mapContainer.current!,
         style: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
         center: [lng, lat],
-        zoom: 12,
+        zoom: 14,
       });
 
       marker.current = new maplibregl.Marker({ draggable: true })
         .setLngLat([lng, lat])
         .addTo(map.current);
 
-      if (isAutoDetected) {
-        const address = await reverseGeocode(lat, lng);
-        onChange({ latitude: lat, longitude: lng, address });
-      }
+      const address = await reverseGeocode(lng, lat);
+      onChange({ latitude: lat, longitude: lng, address });
 
       marker.current.on("dragend", async () => {
         const lngLat = marker.current!.getLngLat();
-        const address = await reverseGeocode(lngLat.lat, lngLat.lng);
-        onChange({ latitude: lngLat.lat, longitude: lngLat.lng, address });
+        const addr = await reverseGeocode(lngLat.lng, lngLat.lat);
+        onChange({ latitude: lngLat.lat, longitude: lngLat.lng, address: addr });
       });
 
       map.current.on("click", async (e) => {
         marker.current!.setLngLat(e.lngLat);
-        const address = await reverseGeocode(e.lngLat.lat, e.lngLat.lng);
-        onChange({ latitude: e.lngLat.lat, longitude: e.lngLat.lng, address });
+        const addr = await reverseGeocode(e.lngLat.lng, e.lngLat.lat);
+        onChange({ latitude: e.lngLat.lat, longitude: e.lngLat.lng, address: addr });
       });
     };
 
@@ -70,15 +69,15 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ location, onChange }) =
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           (position) => {
-            initMap(position.coords.longitude, position.coords.latitude, true);
+            initMap(position.coords.longitude, position.coords.latitude);
           },
           () => {
-            initMap(-74.006, 40.7128); // Fallback to NYC
+            initMap(31.0333, -17.8252); // Default to Harare, Zimbabwe center
           },
           { enableHighAccuracy: true }
         );
       } else {
-        initMap(-74.006, 40.7128);
+        initMap(31.0333, -17.8252);
       }
     }
 

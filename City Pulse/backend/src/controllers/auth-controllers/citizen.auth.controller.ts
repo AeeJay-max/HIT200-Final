@@ -1,7 +1,9 @@
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { CitizenModel } from "../../models/citizen.model";
+import { RefreshTokenModel } from "../../models/refreshToken.model";
 import { z } from "zod";
+import crypto from "crypto";
 import bcrypt from "bcryptjs";
 
 const signupSchema = z.object({
@@ -86,36 +88,81 @@ export const citizenSignin = async (
     }
 
     const accessToken = jwt.sign(
-      { id: existingCitizen._id, role: "citizen" },
+      { id: existingCitizen._id, role: "CITIZEN" },
       process.env.JWT_PASSWORD!,
       { expiresIn: "15m" }
     );
 
-    const refreshToken = jwt.sign(
-      { id: existingCitizen._id, role: "citizen" },
-      process.env.JWT_PASSWORD!,
-      { expiresIn: "7d" }
-    );
+    const refreshToken = crypto.randomBytes(40).toString("hex");
+    await RefreshTokenModel.create({
+      token: refreshToken,
+      userId: existingCitizen._id,
+      userType: "Citizen",
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+    });
 
-    existingCitizen.refreshToken = refreshToken;
-    await existingCitizen.save();
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     res.json({
       token: accessToken,
-      refreshToken,
       user: {
         id: existingCitizen._id,
         fullName: existingCitizen.fullName,
         email: existingCitizen.email,
         phonenumber: existingCitizen.phonenumber,
-        role: "citizen",
+        role: "CITIZEN",
       },
     });
-    console.log("Citizen signed in!");
+    console.log("Citizen signed in with refresh token!");
   } catch (error) {
     console.error("Error during citizen signin:", error);
     res.status(500).json({
       message: "Internal Server Error",
     });
   }
+};
+export const refreshCitizenToken = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { refreshToken } = req.cookies;
+    if (!refreshToken) {
+      res.status(401).json({ message: "No refresh token" });
+      return;
+    }
+
+    const tokenDoc = await RefreshTokenModel.findOne({ token: refreshToken, userType: "Citizen" });
+    if (!tokenDoc) {
+      res.status(403).json({ message: "Invalid refresh token" });
+      return;
+    }
+
+    const citizen = await CitizenModel.findById(tokenDoc.userId);
+    if (!citizen) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
+
+    const newAccessToken = jwt.sign(
+      { id: citizen._id, role: "CITIZEN" },
+      process.env.JWT_PASSWORD!,
+      { expiresIn: "15m" }
+    );
+
+    res.json({ token: newAccessToken });
+  } catch (error) {
+    res.status(500).json({ message: "Refresh failed" });
+  }
+};
+
+export const citizenLogout = async (req: Request, res: Response): Promise<void> => {
+  const { refreshToken } = req.cookies;
+  if (refreshToken) {
+    await RefreshTokenModel.deleteOne({ token: refreshToken });
+  }
+  res.clearCookie("refreshToken");
+  res.status(200).json({ message: "Logged out" });
 };

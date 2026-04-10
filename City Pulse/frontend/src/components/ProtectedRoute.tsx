@@ -26,8 +26,16 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/signin" state={{ from: location }} replace />;
   }
 
-  if (requiredRole && user.role !== requiredRole) {
-    return <Navigate to="/" replace />;
+  if (requiredRole) {
+    const roleStr = String(user.role).toUpperCase();
+    let normalizedRole = roleStr;
+    if (roleStr === "DEPARTMENT_WORKER" || roleStr === "DEPT_WORKER" || roleStr === "WORKER") normalizedRole = "worker";
+    else if (roleStr === "DEPARTMENT_ADMIN" || roleStr === "MAIN_ADMIN" || roleStr === "DEPT_ADMIN" || roleStr === "ADMIN") normalizedRole = "admin";
+    else if (roleStr === "CITIZEN") normalizedRole = "citizen";
+
+    if (normalizedRole !== requiredRole) {
+      return <Navigate to="/" replace />;
+    }
   }
 
   return <>{children}</>;

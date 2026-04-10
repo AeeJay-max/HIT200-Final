@@ -19,7 +19,7 @@ export default function NotificationSender() {
         e.preventDefault();
         setLoading(true);
         try {
-            const res = await fetch(`${VITE_BACKEND_URL}/api/v1/admin/notifications/broadcast`, {
+            const res = await fetch(`${VITE_BACKEND_URL}/api/v1/admin/notifications`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -29,14 +29,14 @@ export default function NotificationSender() {
             });
             const data = await res.json();
             if (res.ok) {
-                toast.success("Broadcast web-push sent successfully!");
+                toast.success("Notification sent successfully!");
                 setTitle("");
                 setMessage("");
             } else {
-                toast.error(data.message || "Error sending broadcast");
+                toast.error(data.message || "Error sending");
             }
         } catch (error) {
-            toast.error("Internal error sending push notification");
+            toast.error("Internal error");
         } finally {
             setLoading(false);
         }
@@ -79,7 +79,7 @@ export default function NotificationSender() {
                         <Label>Message content</Label>
                         <Textarea value={message} onChange={(e) => setMessage(e.target.value)} required placeholder="Details about this alert..." className="min-h-[100px]" />
                     </div>
-                    <Button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                    <Button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-black">
                         <Send className="w-4 h-4 mr-2" />
                         {loading ? "Sending..." : "Push Notification (Email/Web)"}
                     </Button>

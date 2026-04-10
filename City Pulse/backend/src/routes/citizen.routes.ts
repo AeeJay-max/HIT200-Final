@@ -4,20 +4,18 @@ import {
   citizenSignup,
 } from "../controllers/auth-controllers/citizen.auth.controller";
 import { authMiddleware } from "../middlerware/auth.middleware";
-import { loginLimiter } from "../middlerware/rateLimiters";
 import {
   deleteIssue,
   getCitizenProfile,
   getIssuesByCitizen,
   updateCitizenProfile,
-  getTrustScore,
 } from "../controllers/citizen.controller";
 
 const router = Router();
 
 router.post("/citizen/signup", citizenSignup);
 
-router.post("/citizen/signin", loginLimiter, citizenSignin);
+router.post("/citizen/signin", citizenSignin);
 
 router.get("/citizen/profile/", authMiddleware, getCitizenProfile);
 
@@ -27,16 +25,12 @@ router.get("/citizen/issues", authMiddleware, getIssuesByCitizen);
 
 router.delete("/citizen/issues/:id", authMiddleware, deleteIssue);
 
-router.get("/citizen/trust-score", authMiddleware, getTrustScore);
-
-import { getNotifications, subscribeToPush, markAsRead, getUnreadCount } from "../controllers/notification.controller";
+import { getNotifications } from "../controllers/notification.controller";
+import { getActiveBroadcasts } from "../controllers/emergencyBroadcast.controller";
+import { getSchedules } from "../controllers/scheduleAnnouncement.controller";
 
 router.get("/citizen/notifications", authMiddleware, getNotifications);
-
-router.post("/citizen/notifications/subscribe", authMiddleware, subscribeToPush);
-
-router.get("/notifications/unread-count", authMiddleware, getUnreadCount);
-
-router.patch("/notifications/read/:id", authMiddleware, markAsRead);
+router.get("/citizen/broadcasts", authMiddleware, getActiveBroadcasts);
+router.get("/citizen/schedules", authMiddleware, getSchedules);
 
 export default router;

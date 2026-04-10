@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "../components/ui/card";
-import { Search, Plus, MapPin, Clock, User } from "lucide-react";
+import { Search, Plus, MapPin, User } from "lucide-react";
 import { Link } from "react-router-dom";
 import { VITE_BACKEND_URL } from "../config/config";
 import Player from "lottie-react";
@@ -33,6 +33,14 @@ interface Issues {
   reportedAt: string;
   image: string;
   status: string;
+  media?: string[];
+  assignedDepartment?: { name: string };
+  workerAssignedToFix?: { fullName: string };
+  deadlineTimestamp?: string;
+  escalationLevel?: number;
+  resolutionVerificationTimestamp?: string;
+  upvotes: string[];
+  workflowStage?: string;
 }
 
 const MIN_LOADER_DURATION = 2500; // Minimum loader display time (ms)
@@ -41,7 +49,26 @@ const CitizenHome = () => {
   const [searchCity, setSearchCity] = useState("");
   const [reportedIssues, setReportedIssues] = useState<Issues[]>([]);
   const [loading, setLoading] = useState(true);
+  const [citizen, setCitizen] = useState<any>(null);
   const { hideLoader } = useLoader();
+
+  const handleVote = async (id: string) => {
+    try {
+      const res = await fetch(`${VITE_BACKEND_URL}/api/v1/issues/${id}/vote`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          "Content-Type": "application/json"
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setReportedIssues(prev => prev.map(iss => iss._id === id ? { ...iss, upvotes: [...(iss.upvotes || []), "me"] } : iss));
+      }
+    } catch (error) {
+      console.error("Vote failed", error);
+    }
+  };
 
   useEffect(() => {
     const fetchIssues = async () => {
@@ -74,6 +101,17 @@ const CitizenHome = () => {
     };
 
     fetchIssues();
+
+    const fetchProfile = async () => {
+      try {
+        const res = await fetch(`${VITE_BACKEND_URL}/api/v1/citizen/profile/`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` }
+        });
+        const data = await res.json();
+        if (data.success) setCitizen(data.user);
+      } catch (err) { console.error(err); }
+    };
+    fetchProfile();
   }, [hideLoader]);
 
   const filteredIssues = searchCity
@@ -89,12 +127,47 @@ const CitizenHome = () => {
       case "Pending":
         return "bg-yellow-200/70 text-yellow-900";
       case "Resolved":
+      case "Resolved (Unverified)":
+      case "Closed":
         return "bg-green-200/70 text-green-900";
       case "In Progress":
+      case "Worker Assigned":
         return "bg-blue-200/70 text-blue-900";
       default:
         return "bg-gray-200/70 text-gray-900";
     }
+  };
+
+  const renderStepper = (issue: Issues) => {
+    const steps = [
+      { label: "Reported", active: true },
+      { label: "Assigned", active: !!issue.assignedDepartment },
+      { label: "Dispatched", active: ["In Progress", "Resolved", "Resolved (Unverified)", "Closed", "Worker Assigned"].includes(issue.status) },
+      { label: "Resolved", active: ["Resolved", "Resolved (Unverified)", "Closed"].includes(issue.status) }
+    ];
+
+    const activeCount = steps.filter(s => s.active).length;
+    const progressPercent = (activeCount / steps.length) * 100;
+
+    return (
+      <div className="w-full mt-4 mb-2">
+        <div className="flex justify-between items-center mb-1">
+          <span className="text-xs font-semibold text-slate-500">Progress</span>
+          <span className="text-xs font-bold text-emerald-600">{progressPercent}%</span>
+        </div>
+        <div className="flex items-center justify-between w-full relative">
+          <div className="absolute top-2 left-0 w-full h-1 bg-gray-200 z-0 rounded-full overflow-hidden">
+            <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+          </div>
+          {steps.map((step, idx) => (
+            <div key={idx} className="flex flex-col items-center relative z-10 w-1/4">
+              <div className={`w-4 h-4 rounded-full border-2 border-white shadow-sm ${step.active ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+              <span className={`text-[10px] mt-1 font-medium ${step.active ? 'text-emerald-700' : 'text-gray-400'}`}>{step.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
@@ -129,6 +202,14 @@ const CitizenHome = () => {
               <p className="text-gray-500 mt-2 text-base">
                 Help improve your community by reporting issues
               </p>
+              {citizen && (
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Reputation Score:</span>
+                  <div className={`px-3 py-1 rounded-full text-xs font-black shadow-sm ${citizen.trustScore >= 150 ? "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300" : citizen.trustScore < 50 ? "bg-rose-100 text-rose-700 ring-1 ring-rose-300" : "bg-blue-100 text-blue-700 ring-1 ring-blue-300"}`}>
+                    ★ {citizen.trustScore} {citizen.trustScore >= 150 ? "Power Citizen" : citizen.trustScore < 50 ? "Flagged Account" : "Trusted Citizen"}
+                  </div>
+                </div>
+              )}
             </div>
             <Link to={`/citizen/profile`}>
               <Button
@@ -142,13 +223,28 @@ const CitizenHome = () => {
           </div>
 
           <Tabs defaultValue="issues" className="w-full">
-            <TabsList className="grid w-full max-w-sm grid-cols-2 mb-8 bg-white/70 dark:bg-gray-500 dark:border-white/10 shadow border mx-auto md:mx-0">
+            <TabsList className="grid w-full max-w-sm grid-cols-3 mb-8 bg-white/70 dark:bg-gray-500 dark:border-white/10 shadow border mx-auto md:mx-0">
               <TabsTrigger value="issues">Recent Issues</TabsTrigger>
+              <TabsTrigger value="hotspots">Hotspots Map</TabsTrigger>
               <TabsTrigger value="alerts">Local Updates</TabsTrigger>
             </TabsList>
 
             <TabsContent value="alerts">
               <NotificationFeed />
+            </TabsContent>
+
+            <TabsContent value="hotspots" className="h-[600px]">
+              <Card className="h-full relative overflow-hidden">
+                <div className="absolute top-4 left-4 z-10 bg-white p-3 rounded-lg shadow-md max-w-xs">
+                  <h3 className="font-bold text-slate-800">Hotspot Scanner</h3>
+                  <p className="text-xs text-slate-500">Showing density of reports in your 10km radius</p>
+                </div>
+                <iframe
+                  title="Map"
+                  className="w-full h-full border-0"
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=-122.5,37.7,-122.3,37.8&layer=mapnik`}
+                />
+              </Card>
             </TabsContent>
 
             <TabsContent value="issues" className="space-y-10">
@@ -210,10 +306,19 @@ const CitizenHome = () => {
                           {issue.status}
                         </div>
                       </div>
-                      <CardHeader className="pb-2">
+                      <CardHeader className="pb-2 flex flex-row items-center justify-between">
                         <CardTitle className="text-lg text-gray-800">
                           {issue.title}
                         </CardTitle>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleVote(issue._id)}
+                          className="flex items-center gap-1 text-blue-600 hover:bg-blue-50"
+                        >
+                          <span className="text-sm font-bold">{issue.upvotes?.length || 0}</span>
+                          <Plus className="h-4 w-4" />
+                        </Button>
                       </CardHeader>
                       <CardContent>
                         <p className="text-gray-500 text-sm mb-3 line-clamp-2">
@@ -231,9 +336,47 @@ const CitizenHome = () => {
                             <User className="h-3 w-3 text-gray-400" />
                             <span>Reported by {issue.reportedBy}</span>
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <Clock className="h-3 w-3 text-gray-400" />
-                            <span>{issue.reportedAt}</span>
+
+                          {/* Transparency Dashboard Info */}
+                          <div className="pt-3 mt-3 border-t border-gray-100 flex flex-col space-y-1.5">
+                            {renderStepper(issue)}
+
+                            {!issue.workerAssignedToFix && !issue.assignedDepartment && (
+                              <div className="flex justify-between items-center text-gray-700 bg-gray-50 px-2 py-1 rounded mt-2">
+                                <span className="font-semibold text-[11px] uppercase tracking-wider text-gray-500">Assignment Status</span>
+                                <span className="font-bold text-gray-500">Not Yet Assigned</span>
+                              </div>
+                            )}
+
+                            {issue.assignedDepartment && (
+                              <div className="flex justify-between items-center text-slate-700 bg-slate-50 px-2 py-1 rounded mt-2">
+                                <span className="font-semibold text-[11px] uppercase tracking-wider text-slate-400">Department</span>
+                                <span className="font-semibold">{issue.assignedDepartment.name}</span>
+                              </div>
+                            )}
+                            {issue.workerAssignedToFix && (
+                              <div className="flex justify-between items-center text-blue-700 bg-blue-50 px-2 py-1 rounded">
+                                <span className="font-semibold text-[11px] uppercase tracking-wider text-blue-400">Worker Assigned</span>
+                                <span className="font-bold">{issue.workerAssignedToFix.fullName}</span>
+                              </div>
+                            )}
+                            {issue.deadlineTimestamp && !["Closed", "Resolved (Unverified)", "Resolved"].includes(issue.status) && (
+                              <div className="flex justify-between items-center text-rose-600 bg-rose-50 px-2 py-1 rounded">
+                                <span className="font-semibold text-[11px] uppercase tracking-wider text-rose-400">SLA Deadline</span>
+                                <span className="font-bold">{new Date(issue.deadlineTimestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                              </div>
+                            )}
+                            {(issue.escalationLevel ?? 0) > 0 && (
+                              <div className="flex justify-between items-center text-orange-700 bg-orange-50 px-2 py-1 rounded font-bold">
+                                <span className="text-[11px] uppercase tracking-wider text-orange-400">Escalation Status</span>
+                                <span>Level {issue.escalationLevel}</span>
+                              </div>
+                            )}
+                            {issue.resolutionVerificationTimestamp && (
+                              <div className="text-emerald-600 font-semibold bg-emerald-50 px-2 py-1 rounded mt-1 text-center">
+                                ✓ Verified Completed
+                              </div>
+                            )}
                           </div>
                         </div>
                       </CardContent>

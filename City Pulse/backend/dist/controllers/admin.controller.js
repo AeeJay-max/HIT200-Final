@@ -45,7 +45,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getAnalytics = exports.deleteIssueByAdmin = exports.getHandledIssuesByAdmin = exports.updateIssueStatus = exports.updateAdminProfile = exports.getAdminProfile = void 0;
+exports.getRadiusHotspots = exports.getAnalytics = exports.deleteIssueByAdmin = exports.getHandledIssuesByAdmin = exports.updateIssueStatus = exports.updateAdminProfile = exports.getAdminProfile = void 0;
 const admin_model_1 = require("../models/admin.model");
 const issue_model_1 = require("../models/issue.model");
 const issueStatusHistory_model_1 = require("../models/issueStatusHistory.model");
@@ -217,38 +217,61 @@ const getAnalytics = (req, res) => __awaiter(void 0, void 0, void 0, function* (
             const { AdminModel } = yield Promise.resolve().then(() => __importStar(require("../models/admin.model")));
             const { getCategoriesForDepartment } = yield Promise.resolve().then(() => __importStar(require("../utils/department")));
             const adminReq = yield AdminModel.findById(adminId).lean();
-            if (adminReq) {
+            if (adminReq && adminReq.role !== "MAIN_ADMIN") {
                 const allowedCategories = getCategoriesForDepartment(adminReq.department);
                 if (allowedCategories.length > 0) {
                     matchStage = { $match: { issueType: { $in: allowedCategories } } };
                 }
             }
         }
+        const { WorkerModel } = yield Promise.resolve().then(() => __importStar(require("../models/worker.model")));
+        const { DepartmentModel } = yield Promise.resolve().then(() => __importStar(require("../models/department.model")));
         const basePipeline = Object.keys(matchStage).length > 0 ? [matchStage] : [];
         const totalPipeline = [...basePipeline, { $count: "total" }];
         const totalResult = yield issue_model_1.IssueModel.aggregate(totalPipeline);
         const totalIssues = totalResult.length > 0 ? totalResult[0].total : 0;
-        const byStatus = yield issue_model_1.IssueModel.aggregate([
-            ...basePipeline,
-            { $group: { _id: "$status", count: { $sum: 1 } } }
-        ]);
-        const byCategory = yield issue_model_1.IssueModel.aggregate([
-            ...basePipeline,
-            { $group: { _id: "$issueType", count: { $sum: 1 } } }
-        ]);
+        const byStatus = yield issue_model_1.IssueModel.aggregate([...basePipeline, { $group: { _id: "$status", count: { $sum: 1 } } }]);
+        const byCategory = yield issue_model_1.IssueModel.aggregate([...basePipeline, { $group: { _id: "$issueType", count: { $sum: 1 } } }]);
+        // Geo Intelligence Engine: Hotspots based on coordinates matching
         const hotspots = yield issue_model_1.IssueModel.aggregate([
             ...basePipeline,
-            { $group: { _id: "$location.address", count: { $sum: 1 } } },
+            {
+                $group: {
+                    _id: { lat: "$location.latitude", lng: "$location.longitude", address: "$location.address" },
+                    count: { $sum: 1 }
+                }
+            },
+            { $match: { count: { $gt: 1 } } }, // Danger clusters/repeated failures
             { $sort: { count: -1 } },
-            { $limit: 10 }
+            { $limit: 100 }
         ]);
+        // SLA Compliance
+        const slaCompliance = yield issue_model_1.IssueModel.aggregate([
+            ...basePipeline,
+            {
+                $group: {
+                    _id: { department: "$assignedDepartment", escalationLevel: "$escalationLevel" },
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+        // Worker Productivity
+        const workerProductivity = yield WorkerModel.find({})
+            .sort({ totalIssuesResolved: -1, averageResolutionTimeHours: 1 })
+            .limit(10)
+            .select("fullName email totalIssuesResolved totalOverdueIssues averageResolutionTimeHours performanceScore");
+        // Department Stats
+        const departmentStats = yield DepartmentModel.find({});
         res.status(200).json({
             success: true,
             data: {
                 totalIssues,
                 byStatus,
                 byCategory,
-                hotspots
+                hotspots,
+                slaCompliance,
+                workerProductivity,
+                departmentStats
             }
         });
     }
@@ -258,3 +281,48 @@ const getAnalytics = (req, res) => __awaiter(void 0, void 0, void 0, function* (
     }
 });
 exports.getAnalytics = getAnalytics;
+const getRadiusHotspots = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { lat, lng, radiusKm, timeFilter } = req.body;
+        if (lat === undefined || lng === undefined || !radiusKm) {
+            res.status(400).json({ message: "lat, lng, and radiusKm are required parameters." });
+            return;
+        }
+        const radiusInRadians = radiusKm / 6378.1; // Earth's radius in km
+        let matchStage = {
+            location: {
+                $geoWithin: {
+                    $centerSphere: [[lng, lat], radiusInRadians] // MongoDB uses [lng, lat]
+                }
+            }
+        };
+        if (timeFilter) {
+            const date = new Date();
+            if (timeFilter === "weekly")
+                date.setDate(date.getDate() - 7);
+            if (timeFilter === "monthly")
+                date.setMonth(date.getMonth() - 1);
+            if (timeFilter === "yearly")
+                date.setFullYear(date.getFullYear() - 1);
+            matchStage.createdAt = { $gte: date };
+        }
+        const hotspots = yield issue_model_1.IssueModel.aggregate([
+            { $match: matchStage },
+            {
+                $group: {
+                    _id: { lat: "$location.latitude", lng: "$location.longitude", address: "$location.address", issueType: "$issueType" },
+                    count: { $sum: 1 }
+                }
+            },
+            { $match: { count: { $gt: 0 } } },
+            { $sort: { count: -1 } },
+            { $limit: 100 }
+        ]);
+        res.status(200).json({ success: true, hotspots });
+    }
+    catch (error) {
+        console.error("Error fetching radius hotspots:", error);
+        res.status(500).json({ success: false, message: "Server Error" });
+    }
+});
+exports.getRadiusHotspots = getRadiusHotspots;

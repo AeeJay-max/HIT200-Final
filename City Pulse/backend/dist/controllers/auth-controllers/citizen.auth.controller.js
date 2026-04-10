@@ -12,10 +12,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.citizenSignin = exports.citizenSignup = void 0;
+exports.citizenLogout = exports.refreshCitizenToken = exports.citizenSignin = exports.citizenSignup = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const citizen_model_1 = require("../../models/citizen.model");
+const refreshToken_model_1 = require("../../models/refreshToken.model");
 const zod_1 = require("zod");
+const crypto_1 = __importDefault(require("crypto"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const signupSchema = zod_1.z.object({
     fullName: zod_1.z.string().min(1, { message: "Full name is required" }).trim(),
@@ -78,21 +80,31 @@ const citizenSignin = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             res.status(400).json({ message: "Invalid email or password" });
             return;
         }
-        const token = jsonwebtoken_1.default.sign({
-            id: existingCitizen._id,
-            role: "citizen",
-        }, process.env.JWT_PASSWORD, { expiresIn: "1d" });
+        const accessToken = jsonwebtoken_1.default.sign({ id: existingCitizen._id, role: "CITIZEN" }, process.env.JWT_PASSWORD, { expiresIn: "15m" });
+        const refreshToken = crypto_1.default.randomBytes(40).toString("hex");
+        yield refreshToken_model_1.RefreshTokenModel.create({
+            token: refreshToken,
+            userId: existingCitizen._id,
+            userType: "Citizen",
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        });
+        res.cookie("refreshToken", refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "strict",
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
         res.json({
-            token,
+            token: accessToken,
             user: {
                 id: existingCitizen._id,
                 fullName: existingCitizen.fullName,
                 email: existingCitizen.email,
                 phonenumber: existingCitizen.phonenumber,
-                role: "citizen",
+                role: "CITIZEN",
             },
         });
-        console.log("Citizen signed in!");
+        console.log("Citizen signed in with refresh token!");
     }
     catch (error) {
         console.error("Error during citizen signin:", error);
@@ -102,3 +114,37 @@ const citizenSignin = (req, res) => __awaiter(void 0, void 0, void 0, function* 
     }
 });
 exports.citizenSignin = citizenSignin;
+const refreshCitizenToken = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { refreshToken } = req.cookies;
+        if (!refreshToken) {
+            res.status(401).json({ message: "No refresh token" });
+            return;
+        }
+        const tokenDoc = yield refreshToken_model_1.RefreshTokenModel.findOne({ token: refreshToken, userType: "Citizen" });
+        if (!tokenDoc) {
+            res.status(403).json({ message: "Invalid refresh token" });
+            return;
+        }
+        const citizen = yield citizen_model_1.CitizenModel.findById(tokenDoc.userId);
+        if (!citizen) {
+            res.status(404).json({ message: "User not found" });
+            return;
+        }
+        const newAccessToken = jsonwebtoken_1.default.sign({ id: citizen._id, role: "CITIZEN" }, process.env.JWT_PASSWORD, { expiresIn: "15m" });
+        res.json({ token: newAccessToken });
+    }
+    catch (error) {
+        res.status(500).json({ message: "Refresh failed" });
+    }
+});
+exports.refreshCitizenToken = refreshCitizenToken;
+const citizenLogout = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { refreshToken } = req.cookies;
+    if (refreshToken) {
+        yield refreshToken_model_1.RefreshTokenModel.deleteOne({ token: refreshToken });
+    }
+    res.clearCookie("refreshToken");
+    res.status(200).json({ message: "Logged out" });
+});
+exports.citizenLogout = citizenLogout;

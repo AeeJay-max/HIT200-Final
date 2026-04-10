@@ -101,7 +101,7 @@ const Header: React.FC<HeaderProps> = ({
                   Welcome,{" "}
                   {user?.fullName ? user.fullName.split(" ")[0] : "Guest"}!
                 </span>
-                <Link to={user.role === "citizen" ? "/citizen" : "/admin"}>
+                <Link to={user.role === "citizen" ? "/citizen" : (String(user.role) === "worker" || String(user.role) === "DEPARTMENT_WORKER") ? "/worker" : "/admin"}>
                   <Button
                     variant="outline"
                     size="sm"

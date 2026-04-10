@@ -26,4 +26,17 @@ const storage = new multer_storage_cloudinary_1.CloudinaryStorage({
         });
     }),
 });
-exports.upload = (0, multer_1.default)({ storage });
+exports.upload = (0, multer_1.default)({
+    storage,
+    limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB limit
+    },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith("image/") || file.mimetype.startsWith("video/")) {
+            cb(null, true);
+        }
+        else {
+            cb(new Error("Invalid file type. Only images and videos are allowed."));
+        }
+    }
+});

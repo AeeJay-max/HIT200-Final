@@ -1,18 +1,19 @@
 import mongoose from "mongoose";
 import "dotenv/config";
 
-const DATABASE_URL = process.env.DATABASE_URL || "";
-
 export const connectDB = async () => {
-  console.log("Using MongoDB URL:", process.env.DATABASE_URL);
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    throw new Error("DATABASE_URL is not defined in environment variables");
+  }
+
+  console.log("Attempting to connect to MongoDB...");
 
   try {
-    await mongoose.connect(DATABASE_URL, {
-      maxPoolSize: 20,
-      minPoolSize: 5,
-    });
-    console.log("Connected to DB !");
+    await mongoose.connect(url);
+    console.log("Connected to DB successfully!");
   } catch (err) {
-    console.error("DB connection error:", err);
+    console.error("Mongoose connection error:", err);
+    throw err; // Rethrow so index.ts knows it failed
   }
 };

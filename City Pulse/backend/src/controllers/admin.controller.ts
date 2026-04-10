@@ -226,7 +226,7 @@ export const getAnalytics = async (
       const { getCategoriesForDepartment } = await import("../utils/department");
       const adminReq = await AdminModel.findById(adminId).lean();
 
-      if (adminReq) {
+      if (adminReq && adminReq.role !== "MAIN_ADMIN") {
         const allowedCategories = getCategoriesForDepartment(adminReq.department as string);
         if (allowedCategories.length > 0) {
           matchStage = { $match: { issueType: { $in: allowedCategories } } };
@@ -234,28 +234,51 @@ export const getAnalytics = async (
       }
     }
 
+    const { WorkerModel } = await import("../models/worker.model");
+    const { DepartmentModel } = await import("../models/department.model");
+
     const basePipeline = Object.keys(matchStage).length > 0 ? [matchStage] : [];
 
     const totalPipeline = [...basePipeline, { $count: "total" }];
     const totalResult = await IssueModel.aggregate(totalPipeline);
     const totalIssues = totalResult.length > 0 ? totalResult[0].total : 0;
 
-    const byStatus = await IssueModel.aggregate([
-      ...basePipeline,
-      { $group: { _id: "$status", count: { $sum: 1 } } }
-    ]);
+    const byStatus = await IssueModel.aggregate([...basePipeline, { $group: { _id: "$status", count: { $sum: 1 } } }]);
+    const byCategory = await IssueModel.aggregate([...basePipeline, { $group: { _id: "$issueType", count: { $sum: 1 } } }]);
 
-    const byCategory = await IssueModel.aggregate([
-      ...basePipeline,
-      { $group: { _id: "$issueType", count: { $sum: 1 } } }
-    ]);
-
+    // Geo Intelligence Engine: Hotspots based on coordinates matching
     const hotspots = await IssueModel.aggregate([
       ...basePipeline,
-      { $group: { _id: "$location.address", count: { $sum: 1 } } },
+      {
+        $group: {
+          _id: { lat: "$location.latitude", lng: "$location.longitude", address: "$location.address" },
+          count: { $sum: 1 }
+        }
+      },
+      { $match: { count: { $gt: 1 } } }, // Danger clusters/repeated failures
       { $sort: { count: -1 } },
-      { $limit: 10 }
+      { $limit: 100 }
     ]);
+
+    // SLA Compliance
+    const slaCompliance = await IssueModel.aggregate([
+      ...basePipeline,
+      {
+        $group: {
+          _id: { department: "$assignedDepartment", escalationLevel: "$escalationLevel" },
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Worker Productivity
+    const workerProductivity = await WorkerModel.find({})
+      .sort({ totalIssuesResolved: -1, averageResolutionTimeHours: 1 })
+      .limit(10)
+      .select("fullName email totalIssuesResolved totalOverdueIssues averageResolutionTimeHours performanceScore");
+
+    // Department Stats
+    const departmentStats = await DepartmentModel.find({});
 
     res.status(200).json({
       success: true,
@@ -263,11 +286,61 @@ export const getAnalytics = async (
         totalIssues,
         byStatus,
         byCategory,
-        hotspots
+        hotspots,
+        slaCompliance,
+        workerProductivity,
+        departmentStats
       }
     });
   } catch (error) {
     console.error("Error fetching analytics:", error);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+export const getRadiusHotspots = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { lat, lng, radiusKm, timeFilter } = req.body;
+
+    if (lat === undefined || lng === undefined || !radiusKm) {
+      res.status(400).json({ message: "lat, lng, and radiusKm are required parameters." });
+      return;
+    }
+
+    const radiusInRadians = radiusKm / 6378.1; // Earth's radius in km
+
+    let matchStage: any = {
+      location: {
+        $geoWithin: {
+          $centerSphere: [[lng, lat], radiusInRadians] // MongoDB uses [lng, lat]
+        }
+      }
+    };
+
+    if (timeFilter) {
+      const date = new Date();
+      if (timeFilter === "weekly") date.setDate(date.getDate() - 7);
+      if (timeFilter === "monthly") date.setMonth(date.getMonth() - 1);
+      if (timeFilter === "yearly") date.setFullYear(date.getFullYear() - 1);
+      matchStage.createdAt = { $gte: date };
+    }
+
+    const hotspots = await IssueModel.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: { lat: "$location.latitude", lng: "$location.longitude", address: "$location.address", issueType: "$issueType" },
+          count: { $sum: 1 }
+        }
+      },
+      { $match: { count: { $gt: 0 } } },
+      { $sort: { count: -1 } },
+      { $limit: 100 }
+    ]);
+
+    res.status(200).json({ success: true, hotspots });
+  } catch (error) {
+    console.error("Error fetching radius hotspots:", error);
     res.status(500).json({ success: false, message: "Server Error" });
   }
 };

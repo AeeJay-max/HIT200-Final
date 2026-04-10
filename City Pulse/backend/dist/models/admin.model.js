@@ -15,6 +15,8 @@ const AdminSchema = new mongoose_1.Schema({
         required: [true],
     },
     department: { type: String, required: true },
+    role: { type: String, enum: ["MAIN_ADMIN", "DEPARTMENT_ADMIN"], default: "DEPARTMENT_ADMIN" },
     adminAccessCode: { type: Number, required: true, unique: true },
+    pushSubscription: { type: mongoose_1.Schema.Types.Mixed }, // Web Push Subscription object
 }, { timestamps: true });
 exports.AdminModel = (0, mongoose_1.model)("Admin", AdminSchema);

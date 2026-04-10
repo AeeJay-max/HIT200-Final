@@ -1,24 +1,42 @@
 "use strict";
 // Maps an Admin's department to the Issue categories they have jurisdiction over.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getCategoriesForDepartment = exports.DepartmentIssueMapping = void 0;
+exports.getCategoriesForDepartment = exports.calculateSlaDeadline = exports.getDepartmentForIssueCategory = exports.SlaMappingHrs = exports.DepartmentIssueMapping = void 0;
 exports.DepartmentIssueMapping = {
-    "Roads": ["Potholes", "Streetlights", "Traffic Lights"],
-    "Water": ["Burst Water Pipes", "Sewer Issues"],
-    "Environment": ["Environmental Issues", "Waste Management"],
-    "Main": ["Potholes", "Burst Water Pipes", "Sewer Issues", "Streetlights", "Traffic Lights", "Other"],
-    // Add fallback or "All" mapping for standard master admins if needed.
+    "Roads Department": ["Life-Threatening Potholes"],
+    "Water Department": ["Burst Water Pipes"],
+    "Sanitation Department": ["Sewer Failures"],
+    "Electrical Department": ["Streetlight Failures"],
+    "Traffic Control Department": ["Traffic Light Failures"],
+    "Environmental Department": ["Illegal Dumping Sites"],
 };
-// Helper function to return array of issue types for a department. Returns all if Main or unmapped.
+exports.SlaMappingHrs = {
+    "Life-Threatening Potholes": 24,
+    "Burst Water Pipes": 12,
+    "Sewer Failures": 18,
+    "Streetlight Failures": 72,
+    "Traffic Light Failures": 12,
+    "Illegal Dumping Sites": 48
+};
+// Gets the required Department string based on issue type
+const getDepartmentForIssueCategory = (category) => {
+    const entry = Object.entries(exports.DepartmentIssueMapping).find(([dept, categories]) => categories.includes(category));
+    return entry ? entry[0] : null;
+};
+exports.getDepartmentForIssueCategory = getDepartmentForIssueCategory;
+// Gets SLA deadline timestamp based on issue type + current time
+const calculateSlaDeadline = (category, createdAt = new Date()) => {
+    const hours = exports.SlaMappingHrs[category] || 72; // default 72 if somehow missing
+    return new Date(createdAt.getTime() + hours * 60 * 60 * 1000);
+};
+exports.calculateSlaDeadline = calculateSlaDeadline;
+// Helper function to return array of issue types for a department. Returns all if Main Admin.
 const getCategoriesForDepartment = (department) => {
     if (!department)
         return [];
-    // If the admin is globally assigned or we don't strictly map them, maybe they see everything or nothing.
-    // For safety, Main gets all. Unknown departments get an empty array to prevent data leaking.
     if (department.toLowerCase() === "main" || department.toLowerCase() === "admin") {
-        return exports.DepartmentIssueMapping["Main"];
+        return Object.values(exports.DepartmentIssueMapping).flat();
     }
-    // Exact match from map
     const mapped = Object.keys(exports.DepartmentIssueMapping).find((key) => key.toLowerCase() === department.toLowerCase());
     return mapped ? exports.DepartmentIssueMapping[mapped] : [];
 };

@@ -12,5 +12,9 @@ router.put("/citizen/:id", auth_middleware_1.authMiddleware, citizen_controller_
 router.get("/citizen/issues", auth_middleware_1.authMiddleware, citizen_controller_1.getIssuesByCitizen);
 router.delete("/citizen/issues/:id", auth_middleware_1.authMiddleware, citizen_controller_1.deleteIssue);
 const notification_controller_1 = require("../controllers/notification.controller");
+const emergencyBroadcast_controller_1 = require("../controllers/emergencyBroadcast.controller");
+const scheduleAnnouncement_controller_1 = require("../controllers/scheduleAnnouncement.controller");
 router.get("/citizen/notifications", auth_middleware_1.authMiddleware, notification_controller_1.getNotifications);
+router.get("/citizen/broadcasts", auth_middleware_1.authMiddleware, emergencyBroadcast_controller_1.getActiveBroadcasts);
+router.get("/citizen/schedules", auth_middleware_1.authMiddleware, scheduleAnnouncement_controller_1.getSchedules);
 exports.default = router;

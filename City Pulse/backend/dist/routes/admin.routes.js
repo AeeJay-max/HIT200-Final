@@ -15,6 +15,17 @@ router.put("/admin/:id", auth_middleware_1.authMiddleware, admin_controller_1.up
 router.put("/admin/issue/:id/status", auth_middleware_1.authMiddleware, admin_controller_1.updateIssueStatus);
 router.delete("/issue/admin/:issueid", auth_middleware_1.authMiddleware, admin_controller_1.deleteIssueByAdmin);
 const notification_controller_1 = require("../controllers/notification.controller");
-router.post("/admin/notifications", auth_middleware_1.authMiddleware, notification_controller_1.createNotification);
-router.get("/admin/analytics", auth_middleware_1.authMiddleware, admin_controller_1.getAnalytics);
+const emergencyBroadcast_controller_1 = require("../controllers/emergencyBroadcast.controller");
+const scheduleAnnouncement_controller_1 = require("../controllers/scheduleAnnouncement.controller");
+const auth_middleware_2 = require("../middlerware/auth.middleware");
+router.post("/admin/notifications", auth_middleware_1.authMiddleware, (0, auth_middleware_2.requireRole)(["admin"]), notification_controller_1.createNotification);
+router.get("/admin/notifications", auth_middleware_1.authMiddleware, notification_controller_1.getNotifications);
+// Emergency logic
+router.post("/admin/broadcasts", auth_middleware_1.authMiddleware, (0, auth_middleware_2.requireRole)(["admin"]), emergencyBroadcast_controller_1.createEmergencyBroadcast);
+router.get("/admin/broadcasts", auth_middleware_1.authMiddleware, emergencyBroadcast_controller_1.getActiveBroadcasts);
+// Schedules
+router.post("/admin/schedules", auth_middleware_1.authMiddleware, (0, auth_middleware_2.requireRole)(["admin"]), scheduleAnnouncement_controller_1.createSchedule);
+router.get("/admin/schedules", auth_middleware_1.authMiddleware, scheduleAnnouncement_controller_1.getSchedules);
+router.get("/admin/analytics", auth_middleware_1.authMiddleware, (0, auth_middleware_2.requireRole)(["admin"]), admin_controller_1.getAnalytics);
+router.post("/admin/analytics/radius", auth_middleware_1.authMiddleware, (0, auth_middleware_2.requireRole)(["admin"]), admin_controller_1.getRadiusHotspots);
 exports.default = router;

@@ -2,7 +2,12 @@ import { Request, Response } from "express";
 import { NotificationModel } from "../models/notification.model";
 import { CitizenModel } from "../models/citizen.model";
 import { AdminModel } from "../models/admin.model";
+import { WorkerModel } from "../models/worker.model";
+import { getIO } from "../utils/socket";
 import nodemailer from "nodemailer";
+import { logAction } from "../services/audit.service";
+import { getTransporter } from "../config/email.config";
+
 
 export const createNotification = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -18,8 +23,14 @@ export const createNotification = async (req: Request, res: Response): Promise<v
             title,
             message,
             type,
+            priority: req.body.priority || "Normal",
+            linkTo: req.body.linkTo,
             createdBy: adminId,
         });
+
+        // Emit real-time sync event
+        const io = getIO();
+        io.emit("new_notification", notification);
 
         // Email integration using Nodemailer
         try {
@@ -57,18 +68,10 @@ export const createNotification = async (req: Request, res: Response): Promise<v
                     console.log(`[MOCK EMAIL] From: ${department} (${smtpUser}) | To: ${emails.length} citizens | Title: ${title} | Message: ${message}`);
                 } else {
                     // Initialize dynamic transporter for this specific department
-                    const transporter = nodemailer.createTransport({
-                        host: process.env.SMTP_HOST || "smtp.gmail.com",
-                        port: parseInt(process.env.SMTP_PORT || "587"),
-                        secure: false,
-                        auth: {
-                            user: smtpUser,
-                            pass: smtpPass,
-                        },
-                    });
+                    const transporter = getTransporter({ user: smtpUser, pass: smtpPass });
 
                     const mailOptions = {
-                        from: `"CityPulse ${department} Alerts" <${smtpUser}>`,
+                        from: `"${admin?.fullName || 'CityPulse Admin'}" <${admin?.email || smtpUser}>`,
                         bcc: emails,
                         subject: `CityPulse Alert: ${title}`,
                         text: `${message}\n\n- CityPulse ${department} Administration`,
@@ -93,114 +96,167 @@ export const createNotification = async (req: Request, res: Response): Promise<v
     }
 };
 
-export const getNotifications = async (req: Request, res: Response): Promise<void> => {
-    try {
-        const citizenId = (req as any).citizenId;
-        const adminId = (req as any).adminId;
-        const userId = citizenId || adminId;
-
-        let query: any = {};
-        if (citizenId) {
-            query = { $or: [{ recipient: citizenId }, { recipient: { $exists: false } }, { recipient: null }] };
-        } else if (adminId) {
-            query = { $or: [{ createdBy: adminId }, { recipient: null }] };
-        }
-
-        const notifications = await NotificationModel.find(query).sort({ createdAt: -1 }).limit(50);
-
-        const mapped = notifications.map(n => {
-            const obj = n.toObject();
-            const isRead = n.readBy && n.readBy.some(id => id.toString() === userId?.toString());
-            return { ...obj, isRead };
-        });
-
-        res.status(200).json({ success: true, notifications: mapped });
-    } catch (error) {
-        console.error("Error fetching notifications:", error);
-        res.status(500).json({ success: false, message: "Internal server error" });
-    }
-};
-
-export const getUnreadCount = async (req: Request, res: Response): Promise<void> => {
-    try {
-        const citizenId = (req as any).citizenId;
-        if (!citizenId) { res.status(200).json({ count: 0 }); return; }
-
-        const query = { $or: [{ recipient: citizenId }, { recipient: { $exists: false } }, { recipient: null }] };
-        const notifications = await NotificationModel.find(query);
-        const unreadCount = notifications.filter(n => !n.readBy || !n.readBy.some(id => id.toString() === citizenId.toString())).length;
-
-        res.status(200).json({ success: true, count: unreadCount });
-    } catch (error) {
-        res.status(500).json({ success: false, message: "Internal server error" });
-    }
-};
-
-export const markAsRead = async (req: Request, res: Response): Promise<void> => {
-    try {
-        const citizenId = (req as any).citizenId;
-        const adminId = (req as any).adminId;
-        const userId = citizenId || adminId;
-
-        const { id } = req.params;
-        const notification = await NotificationModel.findById(id);
-        if (!notification) { res.status(404).json({ message: "Not found" }); return; }
-
-        if (!notification.readBy) notification.readBy = [];
-        if (!notification.readBy.includes(userId)) {
-            notification.readBy.push(userId);
-            await notification.save();
-        }
-
-        res.status(200).json({ success: true });
-    } catch (error) {
-        res.status(500).json({ message: "Server error" });
-    }
-};
-
 import webpush from "web-push";
 
+const vapidKeys = {
+    publicKey: "BIhosNvMBwvHorpXnP4Zs5uvTn8RbkqgX7G4bRuPEVeKxbogsy22iNiC4t8to-S6ts8WJ5EjYs_WlN2VBXaJgO0",
+    privateKey: "nRXMTyPoHhmmChyNzL1Ps2ObXOC2U48zRUwBG4qM_Yc"
+};
+
 webpush.setVapidDetails(
-    process.env.VAPID_MAILTO || "mailto:test@example.com",
-    process.env.VAPID_PUBLIC_KEY || "YOUR_PUBLIC_KEY",
-    process.env.VAPID_PRIVATE_KEY || "YOUR_PRIVATE_KEY"
+    "mailto:citypulsead@gmail.com",
+    vapidKeys.publicKey,
+    vapidKeys.privateKey
 );
 
-export const subscribeToPush = async (req: Request, res: Response): Promise<void> => {
+export const sendTargetedNotification = async (userId: string, title: string, message: string, type: string): Promise<void> => {
     try {
-        const citizenId = (req as any).citizenId;
-        const subscription = req.body;
-        await CitizenModel.findByIdAndUpdate(citizenId, { pushSubscription: subscription });
-        res.status(200).json({ success: true, message: "Subscribed to push notifications" });
+        const notification = await NotificationModel.create({
+            title,
+            message,
+            type,
+            recipientId: userId,
+            priority: "High",
+        });
+
+        const io = getIO();
+        io.to(userId).emit("new_notification", notification);
+
+        // Attempt Web Push if subscription exists
+        const user: any = (await CitizenModel.findById(userId)) || (await AdminModel.findById(userId)) || (await WorkerModel.findById(userId));
+        if (user?.pushSubscription) {
+            await webpush.sendNotification(user.pushSubscription, JSON.stringify({ title, message, type }));
+        }
+
+        console.log(`[Targeted Notification] To: ${userId} | Title: ${title}`);
     } catch (error) {
-        res.status(500).json({ message: "Server error" });
+        console.error("Error sending targeted notification:", error);
     }
 };
 
-export const sendBroadcast = async (req: Request, res: Response): Promise<void> => {
+export const subscribePush = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { subscription } = req.body;
+        const userId = (req as any).citizenId || (req as any).adminId || (req as any).workerId;
+
+        const Model: any = (req as any).citizenId ? CitizenModel : (req as any).adminId ? AdminModel : WorkerModel;
+        await Model.findByIdAndUpdate(userId, { pushSubscription: subscription });
+
+        res.status(200).json({ success: true, message: "Subscribed to push notifications" });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Subscription failed" });
+    }
+};
+
+export const broadcastNotification = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { title, message, type, department } = req.body;
+        const adminId = (req as any).adminId;
+
+        const notification = await NotificationModel.create({
+            title,
+            message,
+            type: type || "Broadcast",
+            createdBy: adminId,
+            priority: "Critical",
+            deliveryStatus: "pending"
+        });
+
+        const io = getIO();
+        io.emit("new_notification", notification);
+
+        // Batch send push notifications to all users with subscriptions
+        const citizens = await CitizenModel.find({ pushSubscription: { $exists: true } });
+        const admins = await AdminModel.find({ pushSubscription: { $exists: true } });
+
+        const allUsers = [...citizens, ...admins];
+        const pushPromises = allUsers.map(u =>
+            webpush.sendNotification(u.pushSubscription as any, JSON.stringify({ title, message, type: "Broadcast" }))
+                .catch(err => console.error("Push failed for user", u._id))
+        );
+
+        const pushResults = await Promise.allSettled(pushPromises);
+        const failedCount = pushResults.filter(r => r.status === "rejected").length;
+
+        notification.deliveryStatus = failedCount > 0 ? "failed" : "sent";
+        await notification.save();
+
+        await logAction({
+            actorId: adminId,
+            actorRole: "ADMIN",
+            actionType: "BROADCAST_SENT",
+            targetEntity: "NOTIFICATION",
+            targetId: notification._id as string,
+            newValue: { title, type: "Broadcast" },
+            ipAddress: req.ip
+        });
+
+        res.status(201).json({ success: true, notification });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Broadcast failed" });
+    }
+};
+
+export const disasterBroadcast = async (req: Request, res: Response): Promise<void> => {
     try {
         const { title, message } = req.body;
         const adminId = (req as any).adminId;
 
-        await NotificationModel.create({
-            title,
+        const notification = await NotificationModel.create({
+            title: `🚨 EMERGENCY: ${title}`,
             message,
-            type: "broadcast",
-            createdBy: adminId
+            type: "Emergency",
+            priority: "Critical",
+            createdBy: adminId,
+            deliveryStatus: "pending"
         });
 
-        const citizens = await CitizenModel.find({ pushSubscription: { $ne: null } });
-
-        const payload = JSON.stringify({ title, body: message });
-
-        const promises = citizens.map(c =>
-            webpush.sendNotification(c.pushSubscription as any, payload).catch((e: any) => console.log("Push Error:", e))
+        const citizens = await CitizenModel.find({ pushSubscription: { $exists: true } });
+        const pushPromises = citizens.map(c =>
+            webpush.sendNotification(c.pushSubscription as any, JSON.stringify({ title, message, type: "Emergency" }))
         );
 
-        await Promise.all(promises);
+        await Promise.allSettled(pushPromises);
+        notification.deliveryStatus = "sent";
+        await notification.save();
 
-        res.status(200).json({ success: true, message: "Broadcast sent" });
+        res.status(200).json({ success: true, message: "Disaster broadcast sent to all" });
     } catch (error) {
-        res.status(500).json({ message: "Server error" });
+        res.status(500).json({ success: false, message: "Failed" });
+    }
+};
+
+export const getNotifications = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const userId = (req as any).citizenId || (req as any).adminId || (req as any).workerId;
+        const { type } = req.query;
+
+        const query: any = {
+            $or: [
+                { recipientId: userId },
+                { type: "Broadcast" }
+            ]
+        };
+        if (type && type !== "All") query.type = type;
+
+        const notifications = await NotificationModel.find(query).sort({ createdAt: -1 });
+
+        const unread = notifications.filter(n => !n.isRead);
+        const read = notifications.filter(n => n.isRead);
+        const priority = notifications.filter(n => n.priority === "Critical" || n.priority === "Urgent");
+
+        res.status(200).json({ success: true, unread, read, priority });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Fetch failed" });
+    }
+};
+
+export const markNotificationRead = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+        await NotificationModel.findByIdAndUpdate(id, { isRead: true });
+        res.status(200).json({ success: true });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Update failed" });
     }
 };
