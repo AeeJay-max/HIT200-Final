@@ -44,8 +44,8 @@ const IssueSchema = new mongoose_1.Schema({
     },
     status: {
         type: String,
-        enum: ["Reported", "In Progress", "Resolved", "Rejected", "Pending", "Escalated", "Worker Assigned", "Resolved (Unverified)", "Closed"],
-        default: "Reported",
+        enum: ["Reported", "In Progress", "Resolved", "Rejected", "Pending", "Escalated", "Worker Assigned", "Resolved (Unverified)", "Closed", "SUBMITTED", "ROUTED_TO_DEPARTMENT", "ASSIGNED_TO_WORKER", "WORKER_ACCEPTED", "AWAITING_VERIFICATION", "COMPLETED", "IN_PROGRESS"],
+        default: "SUBMITTED",
     },
     location: {
         type: locationSchema,
@@ -96,6 +96,7 @@ const IssueSchema = new mongoose_1.Schema({
     departmentAdminAssignedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "Admin" },
     workerAssignedToFix: { type: mongoose_1.Schema.Types.ObjectId, ref: "Worker" },
     assignmentAcceptedTimestamp: { type: Date },
+    assignmentRejectedTimestamp: { type: Date },
     workerAssignmentTimestamp: { type: Date },
     deadlineTimestamp: { type: Date },
     resolutionTimestamp: { type: Date },
@@ -112,7 +113,7 @@ const IssueSchema = new mongoose_1.Schema({
     overdueStatus: { type: Boolean, default: false },
     workflowStage: {
         type: String,
-        enum: ["SUBMITTED", "ASSIGNED_TO_WORKER"],
+        enum: ["SUBMITTED", "ROUTED_TO_DEPARTMENT", "ASSIGNED_TO_WORKER", "WORKER_ACCEPTED", "IN_PROGRESS", "AWAITING_VERIFICATION", "COMPLETED"],
         default: "SUBMITTED",
     },
     isDeleted: { type: Boolean, default: false },

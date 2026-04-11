@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authMiddleware, requireRole } from "../middlerware/auth.middleware";
-import { createWorker, getAssignedIssues, assignWorkerToIssue, markIssueResolved, getWorkerProfile, getWorkersByDepartment } from "../controllers/worker.controller";
+import { createWorker, getAssignedIssues, assignWorkerToIssue, markIssueResolved, getWorkerProfile, getWorkersByDepartment, getWorkersForAdminDepartment } from "../controllers/worker.controller";
 import { workerSignup, workerLogin } from "../controllers/workerAuth.controllers";
 
 const router = Router();
@@ -11,6 +11,7 @@ router.post("/workers/login", workerLogin);
 
 // Listing workers for a department
 router.get("/departments/:id/workers", authMiddleware, getWorkersByDepartment);
+router.get("/workers/department", authMiddleware, requireRole(["admin"]), getWorkersForAdminDepartment);
 
 // Admin actions on Workers
 router.post("/worker/create", authMiddleware, requireRole(["admin"]), createWorker);

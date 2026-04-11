@@ -24,6 +24,11 @@ const NotificationSchema = new mongoose_1.Schema({
         enum: ["sent", "failed", "pending", "retrying"],
         default: "pending"
     },
+    emailDeliveryStatus: {
+        type: String,
+        enum: ["PENDING", "SENT", "FAILED"],
+        default: "PENDING"
+    },
     retryCount: { type: Number, default: 0 },
 }, { timestamps: true });
 exports.NotificationModel = (0, mongoose_1.model)("Notification", NotificationSchema);

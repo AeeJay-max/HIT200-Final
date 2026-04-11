@@ -42,7 +42,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getServiceOutages = exports.getPublicSchedule = exports.getVotes = exports.getIssueTrackingStatus = exports.assignDepartmentAdmin = exports.assignWorker = exports.getPublicAnalytics = exports.updateDumpingStage = exports.voteIssue = exports.upvoteIssue = exports.getIssues = exports.createIssue = void 0;
+exports.getAssignmentStats = exports.reassignWorker = exports.rejectAssignment = exports.acceptAssignment = exports.getServiceOutages = exports.getPublicSchedule = exports.getVotes = exports.getIssueTrackingStatus = exports.assignDepartmentAdmin = exports.assignWorker = exports.getPublicAnalytics = exports.updateDumpingStage = exports.voteIssue = exports.upvoteIssue = exports.getIssues = exports.createIssue = void 0;
 const issue_model_1 = require("../models/issue.model");
 const multimedia_model_1 = require("../models/multimedia.model");
 const department_model_1 = require("../models/department.model");
@@ -107,7 +107,7 @@ const createIssue = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             title,
             description,
             location: parsedLocation,
-            status: "Reported",
+            status: "SUBMITTED",
             workflowStage: "SUBMITTED",
             assignedDepartment: deptId,
             deadlineTimestamp,
@@ -146,6 +146,7 @@ const getIssues = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         const issues = yield issue_model_1.IssueModel.find(matchQuery)
             .populate("citizenId", "fullName email")
             .populate("assignedDepartment", "name")
+            .populate("departmentAdminAssignedBy", "fullName email")
             .populate("workerAssignedToFix", "fullName")
             .sort({ severity: 1, upvotes: -1 })
             .lean();
@@ -301,6 +302,14 @@ const assignWorker = (req, res) => __awaiter(void 0, void 0, void 0, function* (
             res.status(404).json({ message: "Issue not found" });
             return;
         }
+        if (issue.status === "COMPLETED" || issue.status === "CANCELLED" || issue.status === "Resolved" || issue.status === "Closed") {
+            res.status(400).json({ message: "Cannot assign worker to completed or cancelled issue." });
+            return;
+        }
+        if (issue.workerAssignedToFix) {
+            res.status(400).json({ message: "Worker already assigned. Use reassign to change worker." });
+            return;
+        }
         const oldWorker = issue.workerAssignedToFix;
         issue.workerAssignedToFix = workerId;
         issue.assignedDepartment = worker.department;
@@ -313,7 +322,7 @@ const assignWorker = (req, res) => __awaiter(void 0, void 0, void 0, function* (
         }
         issue.timeline.assignedAt = new Date();
         const oldStatus = issue.status;
-        issue.status = "Worker Assigned";
+        issue.status = "ASSIGNED_TO_WORKER";
         issue.workflowStage = "ASSIGNED_TO_WORKER";
         yield issue.save();
         // log IssueStatusHistory entry
@@ -330,7 +339,7 @@ const assignWorker = (req, res) => __awaiter(void 0, void 0, void 0, function* (
             targetEntity: "ISSUE",
             targetId: issue._id,
             oldValue: { workerId: oldWorker, status: oldStatus },
-            newValue: { workerId, status: "Worker Assigned", workflowStage: "ASSIGNED_TO_WORKER" },
+            newValue: { workerId, status: "ASSIGNED_TO_WORKER", workflowStage: "ASSIGNED_TO_WORKER" },
             ipAddress: req.ip
         });
         // PART 11: Notification triggers. NOTE: sendTargetedNotification handles email, socket and doc trigger automatically
@@ -453,3 +462,166 @@ const getServiceOutages = (req, res) => __awaiter(void 0, void 0, void 0, functi
     }
 });
 exports.getServiceOutages = getServiceOutages;
+const acceptAssignment = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        const { id } = req.params;
+        const workerId = req.workerId;
+        const issue = yield issue_model_1.IssueModel.findById(id);
+        if (!issue) {
+            res.status(404).json({ message: "Issue not found" });
+            return;
+        }
+        if (((_a = issue.workerAssignedToFix) === null || _a === void 0 ? void 0 : _a.toString()) !== workerId) {
+            res.status(403).json({ message: "You are not assigned to this issue" });
+            return;
+        }
+        issue.assignmentAcceptedTimestamp = new Date();
+        issue.status = "WORKER_ACCEPTED";
+        issue.workflowStage = "WORKER_ACCEPTED";
+        if (issue.timeline)
+            issue.timeline.workBegunAt = new Date();
+        yield issue.save();
+        const { IssueStatusHistoryModel } = yield Promise.resolve().then(() => __importStar(require("../models/issueStatusHistory.model")));
+        yield IssueStatusHistoryModel.create({
+            issueID: issue._id,
+            status: "WORKER_ACCEPTED",
+            changedBy: workerId,
+        });
+        if (issue.departmentAdminAssignedBy) {
+            yield (0, notification_controller_1.sendTargetedNotification)(issue.departmentAdminAssignedBy.toString(), "Assignment Accepted", `Worker has accepted assignment for issue ${issue.title}`, "Status Update");
+        }
+        res.status(200).json(issue);
+    }
+    catch (error) {
+        console.error("Error accepting assignment:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+exports.acceptAssignment = acceptAssignment;
+const rejectAssignment = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        const { id } = req.params;
+        const workerId = req.workerId;
+        const issue = yield issue_model_1.IssueModel.findById(id);
+        if (!issue) {
+            res.status(404).json({ message: "Issue not found" });
+            return;
+        }
+        if (((_a = issue.workerAssignedToFix) === null || _a === void 0 ? void 0 : _a.toString()) !== workerId) {
+            res.status(403).json({ message: "You are not assigned to this issue" });
+            return;
+        }
+        issue.assignmentRejectedTimestamp = new Date();
+        issue.workerAssignedToFix = undefined;
+        issue.status = "ROUTED_TO_DEPARTMENT";
+        issue.workflowStage = "ROUTED_TO_DEPARTMENT";
+        yield issue.save();
+        const { IssueStatusHistoryModel } = yield Promise.resolve().then(() => __importStar(require("../models/issueStatusHistory.model")));
+        yield IssueStatusHistoryModel.create({
+            issueID: issue._id,
+            status: "ROUTED_TO_DEPARTMENT",
+            changedBy: workerId,
+        });
+        if (issue.departmentAdminAssignedBy) {
+            yield (0, notification_controller_1.sendTargetedNotification)(issue.departmentAdminAssignedBy.toString(), "Assignment Rejected", `Worker rejected assignment for issue ${issue.title}`, "Warning");
+        }
+        res.status(200).json(issue);
+    }
+    catch (error) {
+        console.error("Error rejecting assignment:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+exports.rejectAssignment = rejectAssignment;
+const reassignWorker = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const { workerId } = req.body;
+        const adminId = req.adminId;
+        const issue = yield issue_model_1.IssueModel.findById(id);
+        if (!issue) {
+            res.status(404).json({ message: "Issue not found" });
+            return;
+        }
+        const worker = yield worker_model_1.WorkerModel.findById(workerId);
+        if (!worker) {
+            res.status(400).json({ message: "New worker not found" });
+            return;
+        }
+        const oldWorkerId = issue.workerAssignedToFix;
+        issue.workerAssignedToFix = workerId;
+        issue.assignmentAcceptedTimestamp = undefined;
+        issue.status = "ASSIGNED_TO_WORKER";
+        issue.workflowStage = "ASSIGNED_TO_WORKER";
+        yield issue.save();
+        const { IssueStatusHistoryModel } = yield Promise.resolve().then(() => __importStar(require("../models/issueStatusHistory.model")));
+        yield IssueStatusHistoryModel.create({
+            issueID: issue._id,
+            status: "ASSIGNED_TO_WORKER",
+            changedBy: adminId,
+        });
+        if (oldWorkerId) {
+            yield (0, notification_controller_1.sendTargetedNotification)(oldWorkerId.toString(), "Unassigned", `You have been unassigned from ${issue.title}`, "Status Update");
+        }
+        yield (0, notification_controller_1.sendTargetedNotification)(workerId, "New Assignment", `You have been reassigned to issue ${issue.title}`, "assignment");
+        res.status(200).json(issue);
+    }
+    catch (error) {
+        console.error("Error reassigning worker:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+exports.reassignWorker = reassignWorker;
+const getAssignmentStats = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const issue = yield issue_model_1.IssueModel.findById(id).populate("workerAssignedToFix").lean();
+        if (!issue) {
+            res.status(404).json({ message: "Issue not found" });
+            return;
+        }
+        const worker = issue.workerAssignedToFix;
+        const workerAvgCompletionTime = worker ? (worker.averageResolutionTimeHours || 0) : 0;
+        let adminAvgResponseTimeHours = 0;
+        if (issue.departmentAdminAssignedBy) {
+            const adminId = issue.departmentAdminAssignedBy;
+            // Calculate admin's average response time by finding all their assigned issues
+            const assignedIssues = yield issue_model_1.IssueModel.find({
+                departmentAdminAssignedBy: adminId,
+                "timeline.reportedAt": { $exists: true },
+                "timeline.assignedAt": { $exists: true }
+            }).select("timeline").lean();
+            if (assignedIssues.length > 0) {
+                let totalResponseMs = 0;
+                let validCount = 0;
+                assignedIssues.forEach(iss => {
+                    var _a, _b;
+                    const rep = ((_a = iss.timeline) === null || _a === void 0 ? void 0 : _a.reportedAt) ? new Date(iss.timeline.reportedAt).getTime() : 0;
+                    const assigned = ((_b = iss.timeline) === null || _b === void 0 ? void 0 : _b.assignedAt) ? new Date(iss.timeline.assignedAt).getTime() : 0;
+                    if (rep > 0 && assigned > 0 && assigned >= rep) {
+                        totalResponseMs += (assigned - rep);
+                        validCount++;
+                    }
+                });
+                if (validCount > 0) {
+                    const avgMs = totalResponseMs / validCount;
+                    adminAvgResponseTimeHours = parseFloat((avgMs / (1000 * 60 * 60)).toFixed(2));
+                }
+            }
+        }
+        res.status(200).json({
+            success: true,
+            stats: {
+                adminAvgResponseTimeHours,
+                workerAvgCompletionTimeHours: workerAvgCompletionTime,
+            }
+        });
+    }
+    catch (error) {
+        console.error("Error fetching assignment stats:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+exports.getAssignmentStats = getAssignmentStats;

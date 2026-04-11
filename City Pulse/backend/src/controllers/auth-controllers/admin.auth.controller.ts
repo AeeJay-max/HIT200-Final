@@ -113,7 +113,7 @@ export const adminSignin = async (
     const accessToken = jwt.sign(
       { id: existingUser._id, role: existingUser.role },
       process.env.JWT_PASSWORD!,
-      { expiresIn: "15m" }
+      { expiresIn: "7h" }
     );
 
     const refreshToken = crypto.randomBytes(40).toString("hex");
@@ -174,7 +174,7 @@ export const refreshAdminToken = async (req: Request, res: Response): Promise<vo
     const newAccessToken = jwt.sign(
       { id: admin._id, role: admin.role },
       process.env.JWT_PASSWORD!,
-      { expiresIn: "15m" }
+      { expiresIn: "7h" }
     );
 
     res.json({ token: newAccessToken });

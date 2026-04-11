@@ -80,7 +80,7 @@ const citizenSignin = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             res.status(400).json({ message: "Invalid email or password" });
             return;
         }
-        const accessToken = jsonwebtoken_1.default.sign({ id: existingCitizen._id, role: "CITIZEN" }, process.env.JWT_PASSWORD, { expiresIn: "15m" });
+        const accessToken = jsonwebtoken_1.default.sign({ id: existingCitizen._id, role: "CITIZEN" }, process.env.JWT_PASSWORD, { expiresIn: "10h" });
         const refreshToken = crypto_1.default.randomBytes(40).toString("hex");
         yield refreshToken_model_1.RefreshTokenModel.create({
             token: refreshToken,
@@ -131,7 +131,7 @@ const refreshCitizenToken = (req, res) => __awaiter(void 0, void 0, void 0, func
             res.status(404).json({ message: "User not found" });
             return;
         }
-        const newAccessToken = jsonwebtoken_1.default.sign({ id: citizen._id, role: "CITIZEN" }, process.env.JWT_PASSWORD, { expiresIn: "15m" });
+        const newAccessToken = jsonwebtoken_1.default.sign({ id: citizen._id, role: "CITIZEN" }, process.env.JWT_PASSWORD, { expiresIn: "10h" });
         res.json({ token: newAccessToken });
     }
     catch (error) {

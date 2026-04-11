@@ -103,7 +103,7 @@ export const getAssignedIssues = async (req: Request, res: Response): Promise<vo
         }
 
         const issues = await IssueModel.find({
-            assignedDepartment: worker.department
+            workerAssignedToFix: worker._id
         }).populate("citizenId", "fullName email")
             .populate("assignedDepartment", "name")
             .populate("workerAssignedToFix", "fullName");
@@ -120,21 +120,23 @@ export const assignWorkerToIssue = async (req: Request, res: Response): Promise<
         const { issueId, workerId } = req.body;
         const adminId = (req as any).adminId;
 
-        const issue = await IssueModel.findByIdAndUpdate(
-            issueId,
-            {
-                workerAssignedToFix: workerId,
-                departmentAdminAssignedBy: adminId,
-                workerAssignmentTimestamp: new Date(),
-                status: "Worker Assigned"
-            },
-            { new: true }
-        );
+        const issue = await IssueModel.findById(issueId);
 
         if (!issue) {
             res.status(404).json({ message: "Issue not found" });
             return;
         }
+
+        if (!issue.timeline) {
+            issue.timeline = { reportedAt: new Date(), isOverdue: false };
+        }
+        issue.timeline.assignedAt = new Date();
+        issue.workerAssignedToFix = workerId;
+        issue.departmentAdminAssignedBy = adminId;
+        issue.workerAssignmentTimestamp = new Date();
+        issue.status = "Worker Assigned";
+
+        await issue.save();
 
         await IssueStatusHistoryModel.create({
             issueID: issue._id,
@@ -173,8 +175,23 @@ export const markIssueResolved = async (req: Request, res: Response): Promise<vo
             changedBy: new mongoose.Types.ObjectId(workerId!),
         });
 
-        // We can calculate worker performance immediately or later
-        await WorkerModel.findByIdAndUpdate(workerId, { $inc: { totalIssuesResolved: 1 } });
+        // Calculate worker aggregate performance metrics dynamically
+        const worker = await WorkerModel.findById(workerId);
+        if (worker && issue.workerAssignmentTimestamp) {
+            const timeTakenMs = new Date().getTime() - new Date(issue.workerAssignmentTimestamp).getTime();
+            const timeTakenHours = timeTakenMs / (1000 * 60 * 60);
+
+            const oldTotal = worker.totalIssuesResolved || 0;
+            const oldAvg = worker.averageResolutionTimeHours || 0;
+
+            const newAvg = ((oldAvg * oldTotal) + timeTakenHours) / (oldTotal + 1);
+
+            worker.totalIssuesResolved = oldTotal + 1;
+            worker.averageResolutionTimeHours = parseFloat(newAvg.toFixed(2));
+            await worker.save();
+        } else {
+            await WorkerModel.findByIdAndUpdate(workerId, { $inc: { totalIssuesResolved: 1 } });
+        }
 
         res.json({ success: true, message: "Issue marked as resolved", issue });
     } catch (err) {
@@ -202,6 +219,34 @@ export const getWorkersByDepartment = async (req: Request, res: Response): Promi
         const workers = await WorkerModel.find({ department: id }).select("-password");
         res.json({ success: true, workers });
     } catch (err) {
+        res.status(500).json({ success: false, message: "Error fetching workers" });
+    }
+};
+
+export const getWorkersForAdminDepartment = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const adminId = (req as any).adminId;
+        if (!adminId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const admin = await AdminModel.findById(adminId);
+        if (!admin || !admin.department) {
+            res.status(404).json({ message: "Admin or department not found" });
+            return;
+        }
+
+        const deptDoc = await DepartmentModel.findOne({ name: admin.department });
+        if (!deptDoc) {
+            res.json({ success: true, workers: [] });
+            return;
+        }
+
+        const workers = await WorkerModel.find({ department: deptDoc._id }).select("-password");
+        res.json({ success: true, workers });
+    } catch (err) {
+        console.error("Error fetching admin department workers:", err);
         res.status(500).json({ success: false, message: "Error fetching workers" });
     }
 };

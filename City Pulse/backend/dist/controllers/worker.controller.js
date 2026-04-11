@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getWorkerProfile = exports.markIssueResolved = exports.assignWorkerToIssue = exports.getAssignedIssues = exports.workerLogin = exports.createWorker = void 0;
+exports.getWorkersForAdminDepartment = exports.getWorkersByDepartment = exports.getWorkerProfile = exports.markIssueResolved = exports.assignWorkerToIssue = exports.getAssignedIssues = exports.workerLogin = exports.createWorker = void 0;
 const worker_model_1 = require("../models/worker.model");
 const issue_model_1 = require("../models/issue.model");
 const issueStatusHistory_model_1 = require("../models/issueStatusHistory.model");
@@ -101,7 +101,7 @@ const getAssignedIssues = (req, res) => __awaiter(void 0, void 0, void 0, functi
             return;
         }
         const issues = yield issue_model_1.IssueModel.find({
-            assignedDepartment: worker.department
+            workerAssignedToFix: worker._id
         }).populate("citizenId", "fullName email")
             .populate("assignedDepartment", "name")
             .populate("workerAssignedToFix", "fullName");
@@ -117,16 +117,20 @@ const assignWorkerToIssue = (req, res) => __awaiter(void 0, void 0, void 0, func
     try {
         const { issueId, workerId } = req.body;
         const adminId = req.adminId;
-        const issue = yield issue_model_1.IssueModel.findByIdAndUpdate(issueId, {
-            workerAssignedToFix: workerId,
-            departmentAdminAssignedBy: adminId,
-            workerAssignmentTimestamp: new Date(),
-            status: "Worker Assigned"
-        }, { new: true });
+        const issue = yield issue_model_1.IssueModel.findById(issueId);
         if (!issue) {
             res.status(404).json({ message: "Issue not found" });
             return;
         }
+        if (!issue.timeline) {
+            issue.timeline = { reportedAt: new Date(), isOverdue: false };
+        }
+        issue.timeline.assignedAt = new Date();
+        issue.workerAssignedToFix = workerId;
+        issue.departmentAdminAssignedBy = adminId;
+        issue.workerAssignmentTimestamp = new Date();
+        issue.status = "Worker Assigned";
+        yield issue.save();
         yield issueStatusHistory_model_1.IssueStatusHistoryModel.create({
             issueID: issue._id,
             status: "Worker Assigned",
@@ -156,8 +160,21 @@ const markIssueResolved = (req, res) => __awaiter(void 0, void 0, void 0, functi
             status: "Resolved (Unverified)",
             changedBy: new mongoose_1.default.Types.ObjectId(workerId),
         });
-        // We can calculate worker performance immediately or later
-        yield worker_model_1.WorkerModel.findByIdAndUpdate(workerId, { $inc: { totalIssuesResolved: 1 } });
+        // Calculate worker aggregate performance metrics dynamically
+        const worker = yield worker_model_1.WorkerModel.findById(workerId);
+        if (worker && issue.workerAssignmentTimestamp) {
+            const timeTakenMs = new Date().getTime() - new Date(issue.workerAssignmentTimestamp).getTime();
+            const timeTakenHours = timeTakenMs / (1000 * 60 * 60);
+            const oldTotal = worker.totalIssuesResolved || 0;
+            const oldAvg = worker.averageResolutionTimeHours || 0;
+            const newAvg = ((oldAvg * oldTotal) + timeTakenHours) / (oldTotal + 1);
+            worker.totalIssuesResolved = oldTotal + 1;
+            worker.averageResolutionTimeHours = parseFloat(newAvg.toFixed(2));
+            yield worker.save();
+        }
+        else {
+            yield worker_model_1.WorkerModel.findByIdAndUpdate(workerId, { $inc: { totalIssuesResolved: 1 } });
+        }
         res.json({ success: true, message: "Issue marked as resolved", issue });
     }
     catch (err) {
@@ -180,3 +197,40 @@ const getWorkerProfile = (req, res) => __awaiter(void 0, void 0, void 0, functio
     }
 });
 exports.getWorkerProfile = getWorkerProfile;
+const getWorkersByDepartment = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const workers = yield worker_model_1.WorkerModel.find({ department: id }).select("-password");
+        res.json({ success: true, workers });
+    }
+    catch (err) {
+        res.status(500).json({ success: false, message: "Error fetching workers" });
+    }
+});
+exports.getWorkersByDepartment = getWorkersByDepartment;
+const getWorkersForAdminDepartment = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const adminId = req.adminId;
+        if (!adminId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+        const admin = yield admin_model_1.AdminModel.findById(adminId);
+        if (!admin || !admin.department) {
+            res.status(404).json({ message: "Admin or department not found" });
+            return;
+        }
+        const deptDoc = yield department_model_1.DepartmentModel.findOne({ name: admin.department });
+        if (!deptDoc) {
+            res.json({ success: true, workers: [] });
+            return;
+        }
+        const workers = yield worker_model_1.WorkerModel.find({ department: deptDoc._id }).select("-password");
+        res.json({ success: true, workers });
+    }
+    catch (err) {
+        console.error("Error fetching admin department workers:", err);
+        res.status(500).json({ success: false, message: "Error fetching workers" });
+    }
+});
+exports.getWorkersForAdminDepartment = getWorkersForAdminDepartment;

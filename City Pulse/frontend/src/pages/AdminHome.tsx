@@ -574,6 +574,17 @@ const AdminHome = () => {
                                 </button>
                               </DropdownMenuContent>
                             </DropdownMenu>
+
+                            <Link to={`/admin/assign-worker/${issue._id}`}>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-blue-600 border-blue-200 hover:bg-blue-50 font-semibold"
+                              >
+                                Assign
+                              </Button>
+                            </Link>
+
                             <Button
                               variant="ghost"
                               size="icon"

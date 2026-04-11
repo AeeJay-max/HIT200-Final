@@ -8,7 +8,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import HeaderAfterAuth from "../components/HeaderAfterAuth";
 import { toast } from "sonner";
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOXGL_ACCESS_TOKEN;
+
 
 interface AssignedIssue {
     _id: string;
@@ -40,7 +40,7 @@ const WorkerDashboard = () => {
 
     const fetchIssues = async () => {
         try {
-            const res = await fetch(`${VITE_BACKEND_URL}/api/v1/issues`, {
+            const res = await fetch(`${VITE_BACKEND_URL}/api/v1/worker/issues`, {
                 headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` }
             });
             const data = await res.json();
@@ -62,8 +62,9 @@ const WorkerDashboard = () => {
         setActiveIssue(issue);
 
         try {
+            // Utilize OSRM Open Routing API mapping seamlessly
             const query = await fetch(
-                `https://api.mapbox.com/directions/v5/mapbox/driving/${workerLocation.lng},${workerLocation.lat};${issue.location.longitude},${issue.location.latitude}?geometries=geojson&access_token=${MAPBOX_TOKEN}`
+                `https://router.project-osrm.org/route/v1/driving/${workerLocation.lng},${workerLocation.lat};${issue.location.longitude},${issue.location.latitude}?overview=full&geometries=geojson`
             );
             const data = await query.json();
             if (!data.routes || !data.routes.length) return;
@@ -107,52 +108,41 @@ const WorkerDashboard = () => {
         }
     };
 
-    const handleAccept = async (id: string, e: any) => {
-        e.stopPropagation();
-        try {
-            const res = await fetch(`${VITE_BACKEND_URL}/api/v1/issues/${id}/accept-assignment`, {
-                method: "PATCH",
-                headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` }
-            });
-            if (res.ok) {
-                toast.success("Assignment Accepted!");
-                fetchIssues();
-            } else { toast.error("Failed to accept"); }
-        } catch (err) { console.error(err); }
-    };
-
-    const handleReject = async (id: string, e: any) => {
-        e.stopPropagation();
-        try {
-            const res = await fetch(`${VITE_BACKEND_URL}/api/v1/issues/${id}/reject-assignment`, {
-                method: "PATCH",
-                headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` }
-            });
-            if (res.ok) {
-                toast.success("Assignment Rejected!");
-                fetchIssues();
-                setActiveIssue(null);
-            } else { toast.error("Failed to reject"); }
-        } catch (err) { console.error(err); }
-    };
-
+    // Worker cannot deny assigned issues, removing acceptance workflow
     useEffect(() => {
-        if (!mapContainer.current || mapRef.current || !workerLocation) return;
-        mapRef.current = new maplibregl.Map({
+        if (!mapContainer.current || !workerLocation) return;
+
+        if (mapRef.current) {
+            mapRef.current.setCenter([workerLocation.lng, workerLocation.lat]);
+            return;
+        }
+
+        const map = new maplibregl.Map({
             container: mapContainer.current,
             style: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
             center: [workerLocation.lng, workerLocation.lat],
             zoom: 12,
         });
 
+        mapRef.current = map;
+
         new maplibregl.Marker({ color: 'green' })
             .setLngLat([workerLocation.lng, workerLocation.lat])
-            .addTo(mapRef.current);
+            .addTo(map);
     }, [workerLocation]);
+
+    useEffect(() => {
+        return () => {
+            if (mapRef.current) {
+                mapRef.current.remove();
+                mapRef.current = null;
+            }
+        };
+    }, []);
 
     const markResolved = async (id: string) => {
         try {
-            const res = await fetch(`${VITE_BACKEND_URL}/api/v1/issues/${id}/resolve`, {
+            const res = await fetch(`${VITE_BACKEND_URL}/api/v1/worker/issues/${id}/resolve`, {
                 method: "PUT",
                 headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` }
             });
@@ -187,12 +177,8 @@ const WorkerDashboard = () => {
                                     <p className="text-sm text-gray-600 truncate">{issue.description}</p>
                                     <p className="text-xs text-gray-500 mt-2 flex items-center gap-1"><MapPin size={12} /> {issue.location.address}</p>
                                     <div className="mt-3 flex gap-2">
-                                        {(issue.status === "ASSIGNED_TO_WORKER" || issue.status === "Worker Assigned") && (
-                                            <>
-                                                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 h-8 text-xs" onClick={(e) => handleAccept(issue._id, e)}>Accept</Button>
-                                                <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={(e) => handleReject(issue._id, e)}>Reject</Button>
-                                            </>
-                                        )}
+                                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700 h-8 text-xs font-semibold" onClick={(e) => { e.stopPropagation(); getRoute(issue); }}>Navigate to Issue</Button>
+                                        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 h-8 text-xs font-semibold" onClick={(e) => { e.stopPropagation(); markResolved(issue._id); }}>Completed</Button>
                                     </div>
                                 </CardContent>
                             </Card>

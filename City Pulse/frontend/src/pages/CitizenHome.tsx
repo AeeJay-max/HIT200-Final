@@ -35,6 +35,7 @@ interface Issues {
   status: string;
   media?: string[];
   assignedDepartment?: { name: string };
+  departmentAdminAssignedBy?: { fullName: string; email: string };
   workerAssignedToFix?: { fullName: string };
   deadlineTimestamp?: string;
   escalationLevel?: number;
@@ -51,6 +52,30 @@ const CitizenHome = () => {
   const [loading, setLoading] = useState(true);
   const [citizen, setCitizen] = useState<any>(null);
   const { hideLoader } = useLoader();
+
+  const [statsModalOpen, setStatsModalOpen] = useState(false);
+  const [assignmentStats, setAssignmentStats] = useState<any>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  const handleViewStats = async (issueId: string) => {
+    setStatsModalOpen(true);
+    setStatsLoading(true);
+    setAssignmentStats(null);
+    try {
+      const res = await fetch(`${VITE_BACKEND_URL}/api/v1/issues/${issueId}/assignment-stats`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAssignmentStats(data.stats);
+      }
+    } catch (err) {
+      console.error("Failed to fetch stats", err);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
 
   const handleVote = async (id: string) => {
     try {
@@ -141,7 +166,7 @@ const CitizenHome = () => {
   const renderStepper = (issue: Issues) => {
     const steps = [
       { label: "Reported", active: true },
-      { label: "Assigned", active: !!issue.assignedDepartment },
+      { label: "Assigned", active: !!issue.workerAssignedToFix },
       { label: "Dispatched", active: ["In Progress", "Resolved", "Resolved (Unverified)", "Closed", "Worker Assigned"].includes(issue.status) },
       { label: "Resolved", active: ["Resolved", "Resolved (Unverified)", "Closed"].includes(issue.status) }
     ];
@@ -348,16 +373,26 @@ const CitizenHome = () => {
                               </div>
                             )}
 
-                            {issue.assignedDepartment && (
+                            {issue.assignedDepartment && !issue.workerAssignedToFix && (
                               <div className="flex justify-between items-center text-slate-700 bg-slate-50 px-2 py-1 rounded mt-2">
                                 <span className="font-semibold text-[11px] uppercase tracking-wider text-slate-400">Department</span>
-                                <span className="font-semibold">{issue.assignedDepartment.name}</span>
+                                <div className="text-right">
+                                  <span className="font-semibold block">{issue.assignedDepartment.name}</span>
+                                  <span className="text-[10px] text-slate-400">Waiting for Worker Assignment</span>
+                                </div>
                               </div>
                             )}
+
                             {issue.workerAssignedToFix && (
-                              <div className="flex justify-between items-center text-blue-700 bg-blue-50 px-2 py-1 rounded">
-                                <span className="font-semibold text-[11px] uppercase tracking-wider text-blue-400">Worker Assigned</span>
-                                <span className="font-bold">{issue.workerAssignedToFix.fullName}</span>
+                              <div
+                                className="flex justify-between items-center text-blue-700 bg-blue-50 px-2 py-2 rounded mt-2 cursor-pointer hover:bg-blue-100 transition-colors"
+                                onClick={() => handleViewStats(issue._id)}
+                              >
+                                <span className="font-semibold text-[11px] uppercase tracking-wider text-blue-400">Assigned By {issue.departmentAdminAssignedBy?.fullName || "Admin"}</span>
+                                <div className="text-right">
+                                  <span className="font-bold block">{issue.workerAssignedToFix.fullName}</span>
+                                  <span className="text-[10px] text-blue-400 underline mt-0.5 inline-block">View Performance Stats</span>
+                                </div>
                               </div>
                             )}
                             {issue.deadlineTimestamp && !["Closed", "Resolved (Unverified)", "Resolved"].includes(issue.status) && (
@@ -430,6 +465,56 @@ const CitizenHome = () => {
           </div>
         </main>
       </div>
+
+      {/* Stats Modal */}
+      {statsModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4 relative">
+            <button
+              onClick={() => setStatsModalOpen(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              ✕
+            </button>
+            <h3 className="text-lg font-bold text-slate-800 mb-4">Assignment Performance</h3>
+
+            {statsLoading ? (
+              <div className="py-8 flex justify-center">
+                <span className="text-slate-400 text-sm font-semibold animate-pulse">Loading stats...</span>
+              </div>
+            ) : assignmentStats ? (
+              <div className="space-y-4">
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col items-center justify-center text-center">
+                  <p className="text-xs uppercase tracking-wider font-semibold text-slate-500 mb-1">Admin Avg Response</p>
+                  <p className="text-3xl font-black text-slate-800">
+                    {assignmentStats.adminAvgResponseTimeHours > 0 ? `${assignmentStats.adminAvgResponseTimeHours} hrs` : 'N/A'}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-1 max-w-[200px]">Average time taken for admin to assign after reporting</p>
+                </div>
+
+                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex flex-col items-center justify-center text-center">
+                  <p className="text-xs uppercase tracking-wider font-semibold text-blue-500 mb-1">Worker Avg Completion</p>
+                  <p className="text-3xl font-black text-blue-800">
+                    {assignmentStats.workerAvgCompletionTimeHours > 0 ? `${assignmentStats.workerAvgCompletionTimeHours} hrs` : 'N/A'}
+                  </p>
+                  <p className="text-[10px] text-blue-400 mt-1 max-w-[200px]">Worker's historical average resolution time</p>
+                </div>
+              </div>
+            ) : (
+              <div className="py-8 flex justify-center">
+                <p className="text-rose-500 text-sm font-semibold">Failed to load statistics.</p>
+              </div>
+            )}
+
+            <Button
+              className="w-full mt-6 rounded-xl font-bold"
+              onClick={() => setStatsModalOpen(false)}
+            >
+              Close
+            </Button>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 };

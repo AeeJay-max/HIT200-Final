@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { WorkerModel } from "../models/worker.model";
-import bcrypt from "bcrypt";
+import bcryptjs from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { RefreshTokenModel } from "../models/refreshToken.model";
 import crypto from "crypto";
@@ -21,7 +21,7 @@ export const workerSignup = async (req: Request, res: Response): Promise<void> =
             return;
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcryptjs.hash(password, 10);
 
         const worker = await WorkerModel.create({
             fullName,
@@ -49,7 +49,7 @@ export const workerLogin = async (req: Request, res: Response): Promise<void> =>
             return;
         }
 
-        const isMatch = await bcrypt.compare(password, worker.password!);
+        const isMatch = await bcryptjs.compare(password, worker.password!);
         if (!isMatch) {
             res.status(401).json({ message: "Invalid credentials" });
             return;
@@ -58,7 +58,7 @@ export const workerLogin = async (req: Request, res: Response): Promise<void> =>
         const accessToken = jwt.sign(
             { id: worker._id, role: "WORKER" },
             process.env.JWT_PASSWORD!,
-            { expiresIn: "15m" }
+            { expiresIn: "10h" }
         );
 
         const refreshToken = crypto.randomBytes(40).toString("hex");
@@ -115,7 +115,7 @@ export const refreshWorkerToken = async (req: Request, res: Response): Promise<v
         const newAccessToken = jwt.sign(
             { id: worker._id, role: "WORKER" },
             process.env.JWT_PASSWORD!,
-            { expiresIn: "15m" }
+            { expiresIn: "10h" }
         );
 
         res.json({ token: newAccessToken });

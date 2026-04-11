@@ -77,6 +77,7 @@ const SignIn = () => {
 
         const path = activeTab === "citizen" ? "/citizen" : activeTab === "admin" ? "/admin" : "/worker";
         navigate(path, { replace: true });
+        hideLoader();
       } else {
         toast.error("Sign In Failed!", {
           description: "Invalid credentials",

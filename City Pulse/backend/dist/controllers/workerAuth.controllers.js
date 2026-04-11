@@ -14,7 +14,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.workerLogout = exports.refreshWorkerToken = exports.workerLogin = exports.workerSignup = void 0;
 const worker_model_1 = require("../models/worker.model");
-const bcrypt_1 = __importDefault(require("bcrypt"));
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const refreshToken_model_1 = require("../models/refreshToken.model");
 const crypto_1 = __importDefault(require("crypto"));
@@ -31,7 +31,7 @@ const workerSignup = (req, res) => __awaiter(void 0, void 0, void 0, function* (
             res.status(400).json({ message: "Worker already exists" });
             return;
         }
-        const hashedPassword = yield bcrypt_1.default.hash(password, 10);
+        const hashedPassword = yield bcryptjs_1.default.hash(password, 10);
         const worker = yield worker_model_1.WorkerModel.create({
             fullName,
             email,
@@ -56,12 +56,12 @@ const workerLogin = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             res.status(401).json({ message: "Invalid credentials" });
             return;
         }
-        const isMatch = yield bcrypt_1.default.compare(password, worker.password);
+        const isMatch = yield bcryptjs_1.default.compare(password, worker.password);
         if (!isMatch) {
             res.status(401).json({ message: "Invalid credentials" });
             return;
         }
-        const accessToken = jsonwebtoken_1.default.sign({ id: worker._id, role: "WORKER" }, process.env.JWT_PASSWORD, { expiresIn: "15m" });
+        const accessToken = jsonwebtoken_1.default.sign({ id: worker._id, role: "WORKER" }, process.env.JWT_PASSWORD, { expiresIn: "10h" });
         const refreshToken = crypto_1.default.randomBytes(40).toString("hex");
         yield refreshToken_model_1.RefreshTokenModel.create({
             token: refreshToken,
@@ -109,7 +109,7 @@ const refreshWorkerToken = (req, res) => __awaiter(void 0, void 0, void 0, funct
             res.status(404).json({ message: "Worker not found" });
             return;
         }
-        const newAccessToken = jsonwebtoken_1.default.sign({ id: worker._id, role: "WORKER" }, process.env.JWT_PASSWORD, { expiresIn: "15m" });
+        const newAccessToken = jsonwebtoken_1.default.sign({ id: worker._id, role: "WORKER" }, process.env.JWT_PASSWORD, { expiresIn: "10h" });
         res.json({ token: newAccessToken });
     }
     catch (error) {

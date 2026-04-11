@@ -90,7 +90,7 @@ export const citizenSignin = async (
     const accessToken = jwt.sign(
       { id: existingCitizen._id, role: "CITIZEN" },
       process.env.JWT_PASSWORD!,
-      { expiresIn: "15m" }
+      { expiresIn: "10h" }
     );
 
     const refreshToken = crypto.randomBytes(40).toString("hex");
@@ -149,7 +149,7 @@ export const refreshCitizenToken = async (req: Request, res: Response): Promise<
     const newAccessToken = jwt.sign(
       { id: citizen._id, role: "CITIZEN" },
       process.env.JWT_PASSWORD!,
-      { expiresIn: "15m" }
+      { expiresIn: "10h" }
     );
 
     res.json({ token: newAccessToken });

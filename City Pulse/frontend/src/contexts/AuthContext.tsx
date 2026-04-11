@@ -115,6 +115,29 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(false);
   }, []);
 
+  useEffect(() => {
+    // Independent interval clock traversing LocalStorage
+    const checkTokenExpiration = () => {
+      const currentToken = localStorage.getItem("auth_token");
+      if (!currentToken) return;
+      try {
+        const payloadStr = atob(currentToken.split(".")[1]);
+        const payload = JSON.parse(payloadStr);
+        if (payload.exp && Date.now() >= payload.exp * 1000) {
+          console.warn("System heartbeat detected an expired JWT Session. Terminating authentication state automatically.");
+          logout();
+        }
+      } catch (err) {
+        console.error("JWT decoding failed natively on checking. Forcing logout to remain strictly secure.", err);
+        logout();
+      }
+    };
+
+    checkTokenExpiration();
+    const pulseInterval = setInterval(checkTokenExpiration, 60000);
+    return () => clearInterval(pulseInterval);
+  }, []);
+
   const login = async (
     email: string,
     password: string,
@@ -125,7 +148,7 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
     try {
       let endpoint = "citizen/signin";
       if (role === "admin") endpoint = "admin/signin";
-      else if (role === "worker") endpoint = "worker/login";
+      else if (role === "worker") endpoint = "workers/login";
 
       const body: any = { email, password };
 
@@ -151,6 +174,10 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
 
       const result = await response.json();
       console.log("Login API response:", result);
+
+      if (result.worker && !result.user) {
+        result.user = result.worker;
+      }
 
       if (!response.ok || !result.token || !result.user) {
         console.error("Invalid login response:", result);

@@ -23,11 +23,11 @@ router.post("/citizen/create-issue", auth_middleware_1.authMiddleware, (req, res
 }, issues_controllers_1.createIssue);
 router.get("/all-issues", auth_middleware_1.authMiddleware, issues_controllers_1.getIssues);
 // Community Upvote
-router.post("/:id/upvote", auth_middleware_1.authMiddleware, issues_controllers_1.upvoteIssue);
-router.post("/:id/vote", auth_middleware_1.authMiddleware, issues_controllers_1.voteIssue);
+router.post("/issues/:id/upvote", auth_middleware_1.authMiddleware, issues_controllers_1.upvoteIssue);
+router.post("/issues/:id/vote", auth_middleware_1.authMiddleware, issues_controllers_1.voteIssue);
 // Dumping Lifecycle Tracker
-router.put("/:id/dumping-stage", auth_middleware_1.authMiddleware, issues_controllers_1.updateDumpingStage);
-router.patch("/:id/update-cleanup-stage", auth_middleware_1.authMiddleware, issues_controllers_1.updateDumpingStage); // Alias for consistency
+router.put("/issues/:id/dumping-stage", auth_middleware_1.authMiddleware, issues_controllers_1.updateDumpingStage);
+router.patch("/issues/:id/update-cleanup-stage", auth_middleware_1.authMiddleware, issues_controllers_1.updateDumpingStage); // Alias for consistency
 // Public Transparency
 router.get("/public/analytics", issues_controllers_1.getPublicAnalytics);
 router.get("/public/schedule", issues_controllers_1.getPublicSchedule);
@@ -35,9 +35,13 @@ router.get("/public/outages", issues_controllers_1.getServiceOutages);
 // Maintenance Queue
 router.get("/maintenance-queue", auth_middleware_1.authMiddleware, issues_controllers_1.getIssues); // Reuse getIssues with filter
 // Worker Assignment
-router.patch("/:id/assign-worker", auth_middleware_1.authMiddleware, issues_controllers_1.assignWorker);
-router.patch("/:id/assign-department-admin", auth_middleware_1.authMiddleware, issues_controllers_1.assignDepartmentAdmin);
+router.patch("/issues/:id/assign-worker", auth_middleware_1.authMiddleware, issues_controllers_1.assignWorker);
+router.patch("/issues/:id/assign-department-admin", auth_middleware_1.authMiddleware, issues_controllers_1.assignDepartmentAdmin);
+router.patch("/issues/:id/accept-assignment", auth_middleware_1.authMiddleware, issues_controllers_1.acceptAssignment);
+router.patch("/issues/:id/reject-assignment", auth_middleware_1.authMiddleware, issues_controllers_1.rejectAssignment);
+router.patch("/issues/:id/reassign-worker", auth_middleware_1.authMiddleware, issues_controllers_1.reassignWorker);
 // Tracking API
-router.get("/:id/tracking", issues_controllers_1.getIssueTrackingStatus);
-router.get("/:id/votes", auth_middleware_1.authMiddleware, issues_controllers_1.getVotes);
+router.get("/issues/:id/tracking", issues_controllers_1.getIssueTrackingStatus);
+router.get("/issues/:id/votes", auth_middleware_1.authMiddleware, issues_controllers_1.getVotes);
+router.get("/issues/:id/assignment-stats", auth_middleware_1.authMiddleware, issues_controllers_1.getAssignmentStats);
 exports.default = router;

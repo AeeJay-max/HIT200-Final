@@ -9,16 +9,16 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getWorkerPerformanceById = exports.getDistrictAnalytics = exports.getPublicTransparencyStats = exports.getDepartmentPerformance = exports.get10kmRadiusAnalytics = void 0;
+exports.getAllWorkersPerformance = exports.getWorkerPerformanceById = exports.getDistrictAnalytics = exports.getPublicTransparencyStats = exports.getDepartmentPerformance = exports.get10kmRadiusAnalytics = void 0;
 const issue_model_1 = require("../models/issue.model");
 const mongoose_1 = require("mongoose");
 const get10kmRadiusAnalytics = (lat_1, lng_1, ...args_1) => __awaiter(void 0, [lat_1, lng_1, ...args_1], void 0, function* (lat, lng, radiusMeters = 10000) {
     return yield issue_model_1.IssueModel.aggregate([
         {
             $geoNear: {
-                near: [lng, lat],
+                near: { type: "Point", coordinates: [lng, lat] },
                 distanceField: "distance",
-                maxDistance: radiusMeters,
+                maxDistance: 10000,
                 spherical: true
             }
         },
@@ -161,3 +161,40 @@ const getWorkerPerformanceById = (workerId) => __awaiter(void 0, void 0, void 0,
     ]);
 });
 exports.getWorkerPerformanceById = getWorkerPerformanceById;
+const getAllWorkersPerformance = () => __awaiter(void 0, void 0, void 0, function* () {
+    return yield issue_model_1.IssueModel.aggregate([
+        {
+            $match: {
+                workerAssignedToFix: { $exists: true },
+                status: { $in: ["Resolved", "Closed", "Resolved (Unverified)"] },
+                resolutionTimestamp: { $exists: true },
+                workerAssignmentTimestamp: { $exists: true }
+            }
+        },
+        {
+            $group: {
+                _id: "$workerAssignedToFix",
+                avgResolutionTimeHours: {
+                    $avg: {
+                        $divide: [
+                            { $subtract: ["$resolutionTimestamp", "$workerAssignmentTimestamp"] },
+                            3600000
+                        ]
+                    }
+                },
+                totalResolved: { $sum: 1 },
+                overdueCount: { $sum: { $cond: ["$timeline.isOverdue", 1, 0] } }
+            }
+        },
+        {
+            $lookup: {
+                from: "workers",
+                localField: "_id",
+                foreignField: "_id",
+                as: "workerInfo"
+            }
+        },
+        { $unwind: { path: "$workerInfo", preserveNullAndEmptyArrays: true } }
+    ]);
+});
+exports.getAllWorkersPerformance = getAllWorkersPerformance;

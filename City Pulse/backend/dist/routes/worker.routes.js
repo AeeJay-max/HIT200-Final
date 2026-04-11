@@ -9,7 +9,8 @@ const router = (0, express_1.Router)();
 router.post("/workers/signup", auth_middleware_1.authMiddleware, (0, auth_middleware_1.requireRole)(["admin"]), workerAuth_controllers_1.workerSignup);
 router.post("/workers/login", workerAuth_controllers_1.workerLogin);
 // Listing workers for a department
-router.get("/departments/:id/workers", auth_middleware_1.authMiddleware, worker_controller_1.getAssignedIssues); // Simplified for listing for now
+router.get("/departments/:id/workers", auth_middleware_1.authMiddleware, worker_controller_1.getWorkersByDepartment);
+router.get("/workers/department", auth_middleware_1.authMiddleware, (0, auth_middleware_1.requireRole)(["admin"]), worker_controller_1.getWorkersForAdminDepartment);
 // Admin actions on Workers
 router.post("/worker/create", auth_middleware_1.authMiddleware, (0, auth_middleware_1.requireRole)(["admin"]), worker_controller_1.createWorker);
 router.post("/worker/assign", auth_middleware_1.authMiddleware, (0, auth_middleware_1.requireRole)(["admin"]), worker_controller_1.assignWorkerToIssue);

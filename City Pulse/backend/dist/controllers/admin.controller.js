@@ -103,6 +103,8 @@ const updateIssueStatus = (req, res) => __awaiter(void 0, void 0, void 0, functi
             "Resolved",
             "Rejected",
             "Pending",
+            "Closed",
+            "Resolved (Unverified)",
         ];
         if (!validStatuses.includes(status)) {
             res.status(400).json({ message: "Invalid status value" });

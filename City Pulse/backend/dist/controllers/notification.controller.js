@@ -76,7 +76,7 @@ const createNotification = (req, res) => __awaiter(void 0, void 0, void 0, funct
                     // Initialize dynamic transporter for this specific department
                     const transporter = (0, email_config_1.getTransporter)({ user: smtpUser, pass: smtpPass });
                     const mailOptions = {
-                        from: `"CityPulse ${department} Alerts" <${smtpUser}>`,
+                        from: `"${(admin === null || admin === void 0 ? void 0 : admin.fullName) || 'CityPulse Admin'}" <${(admin === null || admin === void 0 ? void 0 : admin.email) || smtpUser}>`,
                         bcc: emails,
                         subject: `CityPulse Alert: ${title}`,
                         text: `${message}\n\n- CityPulse ${department} Administration`,

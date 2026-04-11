@@ -13,6 +13,7 @@ import DeptAdminSignUp from "./pages/DeptAdminSignUp";
 import MainAdminSignUp from "./pages/MainAdminSignUp";
 import ProtectedRoute from "./components/ProtectedRoute";
 import WorkerDashboard from "./pages/WorkerDashboard";
+import AssignWorkerPage from "./pages/AssignWorkerPage";
 import TransparencyDashboard from "./pages/TransparencyDashboard";
 import Notifications from "./pages/Notifications";
 
@@ -129,6 +130,26 @@ export default function AnimatedRoutes() {
             <ProtectedRoute requiredRole="admin">
               <MotionWrapper>
                 <AdminProfile />
+              </MotionWrapper>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/assign-worker/:id"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <MotionWrapper>
+                <AssignWorkerPage />
+              </MotionWrapper>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/assign-worker/:id"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <MotionWrapper>
+                <AssignWorkerPage />
               </MotionWrapper>
             </ProtectedRoute>
           }

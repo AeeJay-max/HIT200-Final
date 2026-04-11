@@ -9,6 +9,11 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+    // Exclude mapping CDNs and OSRM explicitly to guard against CORS opaque cache breaking MapLibre rendering
+    if (!event.request.url.startsWith(self.location.origin)) {
+        return;
+    }
+
     if (event.request.method === 'POST' && event.request.url.includes('/citizen/create-issue')) {
         // We let the frontend handle the IndexedDB storage when offline
         // but we could also intercept here if we wanted deeper background sync

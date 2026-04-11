@@ -53,8 +53,13 @@ router.get("/response-times/departments", auth_middleware_1.authMiddleware, (req
     }
 }));
 router.get("/response-times/workers", auth_middleware_1.authMiddleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    // If worker performance across all workers, we can return empty or specific
-    res.json({ success: true, stats: [] });
+    try {
+        const stats = yield (0, geoAnalytics_service_1.getAllWorkersPerformance)();
+        res.json({ success: true, stats });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
 }));
 router.get("/department-performance", auth_middleware_1.authMiddleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {

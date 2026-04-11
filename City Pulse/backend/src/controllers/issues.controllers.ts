@@ -126,6 +126,7 @@ export const getIssues = async (req: Request, res: Response): Promise<void> => {
     const issues = await IssueModel.find(matchQuery)
       .populate("citizenId", "fullName email")
       .populate("assignedDepartment", "name")
+      .populate("departmentAdminAssignedBy", "fullName email")
       .populate("workerAssignedToFix", "fullName")
       .sort({ severity: 1, upvotes: -1 })
       .lean();
@@ -613,6 +614,63 @@ export const reassignWorker = async (req: Request, res: Response): Promise<void>
     res.status(200).json(issue);
   } catch (error) {
     console.error("Error reassigning worker:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getAssignmentStats = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const issue = await IssueModel.findById(id).populate("workerAssignedToFix").lean();
+
+    if (!issue) {
+      res.status(404).json({ message: "Issue not found" });
+      return;
+    }
+
+    const worker = issue.workerAssignedToFix as any;
+    const workerAvgCompletionTime = worker ? (worker.averageResolutionTimeHours || 0) : 0;
+
+    let adminAvgResponseTimeHours = 0;
+    if (issue.departmentAdminAssignedBy) {
+      const adminId = issue.departmentAdminAssignedBy;
+
+      // Calculate admin's average response time by finding all their assigned issues
+      const assignedIssues = await IssueModel.find({
+        departmentAdminAssignedBy: adminId,
+        "timeline.reportedAt": { $exists: true },
+        "timeline.assignedAt": { $exists: true }
+      }).select("timeline").lean();
+
+      if (assignedIssues.length > 0) {
+        let totalResponseMs = 0;
+        let validCount = 0;
+
+        assignedIssues.forEach(iss => {
+          const rep = iss.timeline?.reportedAt ? new Date(iss.timeline.reportedAt).getTime() : 0;
+          const assigned = iss.timeline?.assignedAt ? new Date(iss.timeline.assignedAt).getTime() : 0;
+          if (rep > 0 && assigned > 0 && assigned >= rep) {
+            totalResponseMs += (assigned - rep);
+            validCount++;
+          }
+        });
+
+        if (validCount > 0) {
+          const avgMs = totalResponseMs / validCount;
+          adminAvgResponseTimeHours = parseFloat((avgMs / (1000 * 60 * 60)).toFixed(2));
+        }
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      stats: {
+        adminAvgResponseTimeHours,
+        workerAvgCompletionTimeHours: workerAvgCompletionTime,
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching assignment stats:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
