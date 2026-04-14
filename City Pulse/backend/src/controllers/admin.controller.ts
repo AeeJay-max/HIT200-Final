@@ -347,3 +347,130 @@ export const getRadiusHotspots = async (req: AuthRequest, res: Response): Promis
   }
 };
 
+export const getAllAdmins = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const mainAdminId = req.adminId;
+    const mainAdmin = await AdminModel.findById(mainAdminId);
+
+    if (!mainAdmin || mainAdmin.role !== "MAIN_ADMIN") {
+      res.status(403).json({ message: "Only Main Admins can view all admins." });
+      return;
+    }
+
+    const admins = await AdminModel.find({}).select("-password").lean();
+    res.json({ success: true, admins });
+  } catch (error) {
+    console.error("Error fetching all admins:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const verifyIssueCompletion = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { action, notes } = req.body; // action: "Approve" | "Reject"
+    const adminId = req.adminId;
+
+    const admin = await AdminModel.findById(adminId);
+    if (!admin) {
+      res.status(404).json({ message: "Admin not found" });
+      return;
+    }
+
+    const issue = await IssueModel.findById(id).populate("assignedDepartment");
+    if (!issue) {
+      res.status(404).json({ message: "Issue not found" });
+      return;
+    }
+
+    // Security: Only Department Admin of the same department can verify (or Main Admin)
+    if (admin.role === "DEPARTMENT_ADMIN") {
+      const deptName = (issue.assignedDepartment as any)?.name;
+      if (admin.department !== deptName) {
+        res.status(403).json({ message: "You are not authorized to verify issues for another department." });
+        return;
+      }
+    } else if (admin.role !== "MAIN_ADMIN") {
+      res.status(403).json({ message: "Unauthorized role" });
+      return;
+    }
+
+    if (action === "Approve") {
+      issue.status = "Resolved";
+      issue.workflowStage = "RESOLVED";
+      issue.resolutionVerifiedBy = new mongoose.Types.ObjectId(adminId);
+      issue.resolutionVerificationTimestamp = new Date();
+      (issue as any).resolutionTimestamp = new Date();
+    } else {
+      // Revert to In Progress
+      issue.status = "In Progress";
+      issue.workflowStage = "IN_PROGRESS";
+    }
+
+    await issue.save();
+
+    await IssueStatusHistoryModel.create({
+      issueID: issue._id,
+      status: issue.status,
+      handledBy: new mongoose.Types.ObjectId(adminId!),
+      changedBy: new mongoose.Types.ObjectId(adminId!),
+      notes: notes || (action === "Reject" ? "Resolution rejected by admin" : "Resolution approved")
+    });
+
+    res.json({ success: true, message: `Issue ${action === "Approve" ? "marked as resolved" : "returned to worker"}`, issue });
+  } catch (error) {
+    console.error("Error verifying completion:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const manualEscalationAssign = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { departmentId, adminId: deptAdminId } = req.body;
+    const mainAdminId = req.adminId;
+
+    const mainAdmin = await AdminModel.findById(mainAdminId);
+    if (!mainAdmin || mainAdmin.role !== "MAIN_ADMIN") {
+      res.status(403).json({ message: "Only Main Admins can manually reassign escalated issues." });
+      return;
+    }
+
+    const issue = await IssueModel.findById(id);
+    if (!issue) {
+      res.status(404).json({ message: "Issue not found" });
+      return;
+    }
+
+    issue.assignedDepartment = departmentId;
+    if (deptAdminId) {
+      issue.departmentAdminAssignedBy = new mongoose.Types.ObjectId(deptAdminId);
+    }
+    issue.status = "Pending"; // Return to pending for the new department admin to handle
+    issue.escalationLevel = 0; // Reset escalation
+
+    await issue.save();
+
+    await IssueStatusHistoryModel.create({
+      issueID: issue._id,
+      status: "Pending",
+      handledBy: new mongoose.Types.ObjectId(mainAdminId!),
+      changedBy: new mongoose.Types.ObjectId(mainAdminId!),
+      notes: "Escalated issue manually reassigned by Main Admin"
+    });
+
+    res.json({ success: true, message: "Escalated issue reassigned successfully", issue });
+  } catch (error) {
+    console.error("Error in manual escalation assignment:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};

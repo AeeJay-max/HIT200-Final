@@ -20,6 +20,8 @@ import {
   Search,
   Trash2,
   User,
+  ShieldAlert,
+  CheckCircle2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -38,6 +40,7 @@ import NotificationSender from "../components/NotificationSender";
 import IssueMapView from "../components/IssueMapView";
 import starloader from "../assets/animations/starloder.json";
 import { useLoader } from "../contexts/LoaderContext";
+import { getAuthorityLabel } from "../utils/authorityLabels";
 
 interface Issues {
   _id: string;
@@ -53,6 +56,7 @@ interface Issues {
   reportedAt: string;
   image: string;
   status: string;
+  upvotes: string[];
 }
 
 const AdminHome = () => {
@@ -191,16 +195,7 @@ const AdminHome = () => {
     }
   };
 
-  const sortedIssues = [...issues].sort((a, b) => {
-    if (!sortColumn) return 0;
-    const aValue = a[sortColumn as keyof typeof a] as string;
-    const bValue = b[sortColumn as keyof typeof b] as string;
-    return sortDirection === "asc"
-      ? aValue.localeCompare(bValue)
-      : bValue.localeCompare(aValue);
-  });
-
-  const filteredIssues = sortedIssues.filter((issue) => {
+  const filteredIssues = issues.filter((issue) => {
     const searchMatch =
       issue.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       issue.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -209,6 +204,14 @@ const AdminHome = () => {
       statusFilters.length === 0 || statusFilters.includes(issue.status);
     return searchMatch && statusMatch;
   });
+
+  const unresolvedIssues = filteredIssues
+    .filter((i) => i.status !== "Resolved")
+    .sort((a, b) => (b.upvotes?.length || 0) - (a.upvotes?.length || 0));
+
+  const resolvedIssues = filteredIssues
+    .filter((i) => i.status === "Resolved")
+    .sort((a, b) => new Date(b.reportedAt).getTime() - new Date(a.reportedAt).getTime());
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -220,6 +223,8 @@ const AdminHome = () => {
         return "bg-red-100 text-red-800";
       case "Pending":
         return "bg-yellow-100 text-yellow-800";
+      case "AWAITING_DEPARTMENT_ADMIN_CONFIRMATION":
+        return "bg-purple-100 text-purple-800 border-purple-200 animate-pulse";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -234,7 +239,7 @@ const AdminHome = () => {
           animationData={starloader}
           style={{ height: "200px", width: "200px" }}
         />
-        <p className="text-muted-foreground mt-4">Fetching issues...</p>
+        <p className="text-muted-foreground mt-4 animate-pulse">Loading...</p>
       </div>
     );
   }
@@ -257,7 +262,7 @@ const AdminHome = () => {
                 Admin Dashboard
               </h1>
               <p className="text-muted-foreground mt-2">
-                Manage and resolve community issues • <span className="font-semibold text-blue-600">Department: {localStorage.getItem("admin_department") || "Fetching..."}</span>
+                Manage and resolve community issues • <span className="font-semibold text-blue-600">Authority: {getAuthorityLabel(localStorage.getItem("admin_department") || "Fetching...")}</span>
               </p>
             </div>
             <div className="flex items-center gap-4">
@@ -287,6 +292,22 @@ const AdminHome = () => {
                   <span>My Profile</span>
                 </Button>
               </Link>
+              {localStorage.getItem("admin_role") === "MAIN_ADMIN" ? (
+                <Link to="/main-admin-escalations">
+                  <Button className="bg-orange-600 hover:bg-orange-700 text-white shadow-lg">
+                    <ShieldAlert className="h-4 w-4 mr-2" />
+                    Escalation Queue
+                  </Button>
+                </Link>
+              ) : (
+                <Button
+                  onClick={() => setStatusFilters(["AWAITING_DEPARTMENT_ADMIN_CONFIRMATION"])}
+                  className="bg-purple-600 hover:bg-purple-700 text-white shadow-lg"
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Verification Queue
+                </Button>
+              )}
             </div>
           </div>
 
@@ -460,151 +481,152 @@ const AdminHome = () => {
                       >
                         Pending
                       </DropdownMenuCheckboxItem>
+                      <DropdownMenuCheckboxItem
+                        checked={statusFilters.includes("AWAITING_DEPARTMENT_ADMIN_CONFIRMATION")}
+                        onCheckedChange={(checked) =>
+                          setStatusFilters((prev) =>
+                            checked
+                              ? [...prev, "AWAITING_DEPARTMENT_ADMIN_CONFIRMATION"]
+                              : prev.filter((s) => s !== "AWAITING_DEPARTMENT_ADMIN_CONFIRMATION")
+                          )
+                        }
+                      >
+                        Awaiting Verification
+                      </DropdownMenuCheckboxItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
               </div>
 
-              {/* Issues Table */}
-              <div className="rounded-md border bg-white shadow-lg text-slate-500 pl-6 pr-6 hover:shadow-xl transition-shadow duration-300 ">
-                <Table>
-                  <TableCaption>A list of all reported issues...</TableCaption>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("title")}
-                          className="w-full text-gray-700"
-                        >
-                          Title
-                          {sortColumn === "title" &&
-                            (sortDirection === "asc" ? (
-                              <ArrowUp className="ml-2 h-4 w-4 text-gray-500 " />
-                            ) : (
-                              <ArrowDown className="ml-2 h-4 w-4 text-gray-500 " />
-                            ))}
-                        </Button>
-                      </TableHead>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("location")}
-                          className="w-full text-gray-700 "
-                        >
-                          Location
-                          {sortColumn === "location" &&
-                            (sortDirection === "asc" ? (
-                              <ArrowUp className="ml-2 h-4 w-4 text-gray-500 " />
-                            ) : (
-                              <ArrowDown className="ml-2 h-4 w-4 text-gray-500 " />
-                            ))}
-                        </Button>
-                      </TableHead>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("status")}
-                          className="w-full text-gray-700"
-                        >
-                          Status
-                          {sortColumn === "status" &&
-                            (sortDirection === "asc" ? (
-                              <ArrowUp className="ml-2 h-4 w-4 text-gray-500 " />
-                            ) : (
-                              <ArrowDown className="ml-2 h-4 w-4 text-gray-500 " />
-                            ))}
-                        </Button>
-                      </TableHead>
-                      <TableHead className="text-right text-gray-700">
-                        Actions
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredIssues.map((issue) => (
-                      <TableRow key={issue._id}>
-                        <TableCell className="font-medium">{issue.title}</TableCell>
-                        <TableCell>{issue.location.address}</TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(issue.status)}>
-                            {issue.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <Edit className="h-4 w-4 text-blue-600" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="">
-                                {issue.status === "Resolved (Unverified)" && (
-                                  <button
-                                    onClick={() => handleStatusUpdate(issue._id, "Closed")}
-                                    className="block w-full text-left px-4 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-bold"
-                                  >
-                                    Verify Resolution (Close)
-                                  </button>
+              {/* Issues Queue Sections */}
+              <div className="space-y-12">
+                {/* UNRESOLVED SECTION */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 border-l-4 border-[#0577b7] pl-4 py-1">
+                    <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Active Issues Queue</h3>
+                    <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-100">
+                      {unresolvedIssues.length} Pending Actions
+                    </Badge>
+                  </div>
+
+                  <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+                    <Table>
+                      <TableHeader className="bg-slate-50/50">
+                        <TableRow>
+                          <TableHead className="font-bold text-slate-700">Issue Details</TableHead>
+                          <TableHead className="font-bold text-slate-700">Location</TableHead>
+                          <TableHead className="font-bold text-slate-700">Community Support</TableHead>
+                          <TableHead className="font-bold text-slate-700">Status</TableHead>
+                          <TableHead className="text-right font-bold text-slate-700">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {unresolvedIssues.map((issue) => (
+                          <TableRow key={issue._id} className="hover:bg-slate-50/30 transition-colors">
+                            <TableCell className="font-semibold text-slate-800">{issue.title}</TableCell>
+                            <TableCell className="text-slate-500 text-xs">{issue.location.address}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1.5 text-blue-600 font-bold bg-blue-50 w-fit px-2 py-1 rounded-md">
+                                <ArrowUp className="h-3 w-3" />
+                                <span>{issue.upvotes?.length || 0}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={`${getStatusColor(issue.status)} font-bold text-[10px] uppercase tracking-wide`}>
+                                {issue.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="hover:bg-blue-50">
+                                      <Edit className="h-4 w-4 text-blue-600" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <button onClick={() => handleStatusUpdate(issue._id, "In Progress")} className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-sm">Set In Progress</button>
+                                    <button onClick={() => handleStatusUpdate(issue._id, "Rejected")} className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-sm">Reject Issue</button>
+                                    <button onClick={() => handleStatusUpdate(issue._id, "Pending")} className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-sm">Move to Pending</button>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+
+                                <Link to={`/admin/assign-worker/${issue._id}`}>
+                                  <Button variant="outline" size="sm" className="text-blue-600 border-blue-200 hover:bg-blue-50 font-bold h-8 text-[11px]">
+                                    Assign
+                                  </Button>
+                                </Link>
+
+                                {issue.status === "AWAITING_DEPARTMENT_ADMIN_CONFIRMATION" && (
+                                  <Link to={`/admin-review/${issue._id}`}>
+                                    <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white font-bold h-8 text-[11px]">
+                                      Verify
+                                    </Button>
+                                  </Link>
                                 )}
-                                <button
-                                  onClick={() => handleStatusUpdate(issue._id, "Resolved")}
-                                  className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                                >
-                                  Resolved
-                                </button>
-                                <button
-                                  onClick={() => handleStatusUpdate(issue._id, "In Progress")}
-                                  className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                                >
-                                  In Progress
-                                </button>
-                                <button
-                                  onClick={() => handleStatusUpdate(issue._id, "Rejected")}
-                                  className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                                >
-                                  Rejected
-                                </button>
-                                <button
-                                  onClick={() => handleStatusUpdate(issue._id, "Pending")}
-                                  className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                                >
-                                  Pending
-                                </button>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
 
-                            <Link to={`/admin/assign-worker/${issue._id}`}>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="text-blue-600 border-blue-200 hover:bg-blue-50 font-semibold"
-                              >
-                                Assign
-                              </Button>
-                            </Link>
+                                <Button variant="ghost" size="icon" onClick={() => handleDeleteIssue(issue._id)} className="hover:bg-rose-50">
+                                  <Trash2 className="h-4 w-4 text-slate-300 hover:text-rose-500" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
 
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDeleteIssue(issue._id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-gray-500 " />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {filteredIssues.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center text-5xl font-bold animate-pulse ">
-                          No issues found...
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                {/* RESOLVED SECTION */}
+                <div className="space-y-4 opacity-80">
+                  <div className="flex items-center gap-3 border-l-4 border-emerald-500 pl-4 py-1">
+                    <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Resolved Archive</h3>
+                    <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-100">
+                      {resolvedIssues.length} Completed Records
+                    </Badge>
+                  </div>
+
+                  <div className="rounded-xl border bg-slate-50/50 shadow-sm overflow-hidden">
+                    <Table>
+                      <TableHeader className="bg-emerald-50/30">
+                        <TableRow>
+                          <TableHead className="font-bold text-emerald-800">Issue Record</TableHead>
+                          <TableHead className="font-bold text-emerald-800">Location</TableHead>
+                          <TableHead className="font-bold text-emerald-800">Status</TableHead>
+                          <TableHead className="text-right font-bold text-emerald-800">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {resolvedIssues.map((issue) => (
+                          <TableRow key={issue._id} className="bg-white/50 border-b border-white/20">
+                            <TableCell className="font-semibold text-slate-500 italic">{issue.title}</TableCell>
+                            <TableCell className="text-slate-400 text-xs">{issue.location.address}</TableCell>
+                            <TableCell>
+                              <Badge className="bg-emerald-500 text-white border-0 font-bold text-[10px] uppercase tracking-wide">
+                                Resolved ✔
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2 grayscale border-l pl-4 ml-4">
+                                <Button title="Issue already resolved" variant="ghost" size="icon" disabled className="cursor-not-allowed">
+                                  <Edit className="h-4 w-4 opacity-40" />
+                                </Button>
+
+                                <Button disabled title="Issue already resolved" variant="outline" size="sm" className="opacity-40 cursor-not-allowed h-8 text-[11px]">
+                                  Assign
+                                </Button>
+
+                                <Button title="Resolved records cannot be deleted" variant="ghost" size="icon" disabled className="cursor-not-allowed">
+                                  <Trash2 className="h-4 w-4 opacity-40" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
               </div>
             </TabsContent>
           </Tabs>

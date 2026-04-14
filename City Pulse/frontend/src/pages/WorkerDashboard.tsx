@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { MapPin, CheckCircle } from "lucide-react";
@@ -19,6 +20,7 @@ interface AssignedIssue {
 }
 
 const WorkerDashboard = () => {
+    const navigate = useNavigate();
     const [issues, setIssues] = workerIssuesState();
     const [loading, setLoading] = useState(true);
     const [workerLocation, setWorkerLocation] = useState<{ lat: number, lng: number } | null>(null);
@@ -140,23 +142,8 @@ const WorkerDashboard = () => {
         };
     }, []);
 
-    const markResolved = async (id: string) => {
-        try {
-            const res = await fetch(`${VITE_BACKEND_URL}/api/v1/worker/issues/${id}/resolve`, {
-                method: "PUT",
-                headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` }
-            });
-            if (res.ok) {
-                toast.success("Issue Resolved pending Admin Verification");
-                setIssues(issues.filter(i => i._id !== id));
-                setActiveIssue(null);
-                if (mapRef.current && mapRef.current.getSource("route")) {
-                    (mapRef.current.getSource("route") as any).setData({ type: "FeatureCollection", features: [] });
-                }
-            }
-        } catch (e) {
-            console.error(e);
-        }
+    const handleComplete = (id: string) => {
+        navigate(`/worker-complete-issue/${id}`);
     };
 
     return (
@@ -177,8 +164,8 @@ const WorkerDashboard = () => {
                                     <p className="text-sm text-gray-600 truncate">{issue.description}</p>
                                     <p className="text-xs text-gray-500 mt-2 flex items-center gap-1"><MapPin size={12} /> {issue.location.address}</p>
                                     <div className="mt-3 flex gap-2">
-                                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700 h-8 text-xs font-semibold" onClick={(e) => { e.stopPropagation(); getRoute(issue); }}>Navigate to Issue</Button>
-                                        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 h-8 text-xs font-semibold" onClick={(e) => { e.stopPropagation(); markResolved(issue._id); }}>Completed</Button>
+                                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700 h-8 text-xs font-semibold" onClick={(e) => { e.stopPropagation(); getRoute(issue); }}>Navigate</Button>
+                                        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 h-8 text-xs font-semibold" onClick={(e) => { e.stopPropagation(); handleComplete(issue._id); }}>Resolve Issue</Button>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -193,8 +180,8 @@ const WorkerDashboard = () => {
                                     <h3 className="font-bold text-slate-800 mb-2">Navigation</h3>
                                     <div className="flex justify-between mb-1"><span className="text-sm text-slate-500">Distance:</span><span className="font-semibold">{routeInfo.distance}</span></div>
                                     <div className="flex justify-between mb-4"><span className="text-sm text-slate-500">Travel Time:</span><span className="font-semibold">{routeInfo.duration}</span></div>
-                                    <Button onClick={() => markResolved(activeIssue._id)} className="w-full bg-emerald-600 hover:bg-emerald-700">
-                                        <CheckCircle className="mr-2 h-4 w-4" /> Mark Resolved
+                                    <Button onClick={() => handleComplete(activeIssue._id)} className="w-full bg-emerald-600 hover:bg-emerald-700">
+                                        <CheckCircle className="mr-2 h-4 w-4" /> Start Resolution
                                     </Button>
                                 </div>
                             )}

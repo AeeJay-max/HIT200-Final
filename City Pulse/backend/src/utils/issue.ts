@@ -40,15 +40,19 @@ export interface IIssue {
   assignmentRejectedTimestamp?: Date;
   workerAssignmentTimestamp?: Date;
   deadlineTimestamp?: Date;
+  resolutionTimestamp?: Date;
+  queueType?: "emergency" | "maintenance" | "general";
   priorityScore?: number;
   escalationLevel?: number;
   escalationPriority?: "Low" | "Medium" | "High";
   district?: string;
-  resolutionQualityVerifiedBy?: Types.ObjectId;
+  completionMetadata?: {
+    completionImage: string;
+    completionTimestamp: Date;
+    completionNotes?: string;
+  };
+  resolutionVerifiedBy?: Types.ObjectId;
   resolutionVerificationTimestamp?: Date;
-  delayDuration?: number;
-  violationStage?: string;
-  queueType?: "emergency" | "maintenance" | "general";
   duplicateReferenceIssueId?: Types.ObjectId;
   overdueStatus?: boolean;
   isDeleted?: boolean;

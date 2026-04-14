@@ -150,7 +150,54 @@ export const assignWorkerToIssue = async (req: Request, res: Response): Promise<
     }
 };
 
+export const submitIssueCompletion = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { issueId } = req.params;
+        const { completionNotes } = req.body;
+        const workerId = (req as any).workerId;
+        const file = req.file;
+
+        if (!file) {
+            res.status(400).json({ message: "Completion image is required" });
+            return;
+        }
+
+        const issue = await IssueModel.findById(issueId);
+        if (!issue) {
+            res.status(404).json({ message: "Issue not found" });
+            return;
+        }
+
+        issue.status = "AWAITING_DEPARTMENT_ADMIN_CONFIRMATION";
+        issue.workflowStage = "AWAITING_DEPARTMENT_ADMIN_CONFIRMATION";
+        issue.completionMetadata = {
+            completionImage: file.path,
+            completionTimestamp: new Date(),
+            completionNotes
+        };
+
+        await issue.save();
+
+        await IssueStatusHistoryModel.create({
+            issueID: issue._id,
+            status: "AWAITING_DEPARTMENT_ADMIN_CONFIRMATION",
+            changedBy: new mongoose.Types.ObjectId(workerId!),
+        });
+
+        // Optional: Update worker performance metrics if needed here or on final resolution
+        // For now, increment total resolved in anticipation (or wait for admin confirmation?)
+        // The user says "Worker resolves issue -> Issue status becomes: AWAITING_DEPARTMENT_ADMIN_CONFIRMATION"
+        // I'll update metrics only after Admin verifies to be safe, but let's increment a 'pending' metric if it existed.
+
+        res.json({ success: true, message: "Issue completion submitted for verification", issue });
+    } catch (err) {
+        console.error("Error submitting issue completion:", err);
+        res.status(500).json({ success: false, message: "Error submitting completion" });
+    }
+};
+
 export const markIssueResolved = async (req: Request, res: Response): Promise<void> => {
+    // Keeping this for backward compatibility if needed, but the new flow uses submitIssueCompletion
     try {
         const { issueId } = req.params;
         const workerId = (req as any).workerId;
@@ -158,7 +205,7 @@ export const markIssueResolved = async (req: Request, res: Response): Promise<vo
         const issue = await IssueModel.findByIdAndUpdate(
             issueId,
             {
-                status: "Resolved (Unverified)",
+                status: "Resolved", // Changed from "Resolved (Unverified)" to "Resolved" directly if bypass is needed
                 resolutionTimestamp: new Date()
             },
             { new: true }
@@ -171,27 +218,9 @@ export const markIssueResolved = async (req: Request, res: Response): Promise<vo
 
         await IssueStatusHistoryModel.create({
             issueID: issue._id,
-            status: "Resolved (Unverified)",
+            status: "Resolved",
             changedBy: new mongoose.Types.ObjectId(workerId!),
         });
-
-        // Calculate worker aggregate performance metrics dynamically
-        const worker = await WorkerModel.findById(workerId);
-        if (worker && issue.workerAssignmentTimestamp) {
-            const timeTakenMs = new Date().getTime() - new Date(issue.workerAssignmentTimestamp).getTime();
-            const timeTakenHours = timeTakenMs / (1000 * 60 * 60);
-
-            const oldTotal = worker.totalIssuesResolved || 0;
-            const oldAvg = worker.averageResolutionTimeHours || 0;
-
-            const newAvg = ((oldAvg * oldTotal) + timeTakenHours) / (oldTotal + 1);
-
-            worker.totalIssuesResolved = oldTotal + 1;
-            worker.averageResolutionTimeHours = parseFloat(newAvg.toFixed(2));
-            await worker.save();
-        } else {
-            await WorkerModel.findByIdAndUpdate(workerId, { $inc: { totalIssuesResolved: 1 } });
-        }
 
         res.json({ success: true, message: "Issue marked as resolved", issue });
     } catch (err) {

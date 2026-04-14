@@ -49,7 +49,7 @@ const IssueSchema = new Schema<IIssue & Document & any>(
     },
     status: {
       type: String,
-      enum: ["Reported", "In Progress", "Resolved", "Rejected", "Pending", "Escalated", "Worker Assigned", "Resolved (Unverified)", "Closed", "SUBMITTED", "ROUTED_TO_DEPARTMENT", "ASSIGNED_TO_WORKER", "WORKER_ACCEPTED", "AWAITING_VERIFICATION", "COMPLETED", "IN_PROGRESS"],
+      enum: ["Reported", "In Progress", "Resolved", "Rejected", "Pending", "Escalated", "Worker Assigned", "Resolved (Unverified)", "Closed", "SUBMITTED", "ROUTED_TO_DEPARTMENT", "ASSIGNED_TO_WORKER", "WORKER_ACCEPTED", "AWAITING_VERIFICATION", "COMPLETED", "IN_PROGRESS", "AWAITING_DEPARTMENT_ADMIN_CONFIRMATION"],
       default: "SUBMITTED",
     },
     location: {
@@ -113,12 +113,17 @@ const IssueSchema = new Schema<IIssue & Document & any>(
     },
     district: { type: String },
     priorityScore: { type: Number, default: 0 },
-    resolutionQualityVerifiedBy: { type: Schema.Types.ObjectId, ref: "Admin" },
+    completionMetadata: {
+      completionImage: String,
+      completionTimestamp: Date,
+      completionNotes: String,
+    },
+    resolutionVerifiedBy: { type: Schema.Types.ObjectId, ref: "Admin" },
     resolutionVerificationTimestamp: { type: Date },
     overdueStatus: { type: Boolean, default: false },
     workflowStage: {
       type: String,
-      enum: ["SUBMITTED", "ROUTED_TO_DEPARTMENT", "ASSIGNED_TO_WORKER", "WORKER_ACCEPTED", "IN_PROGRESS", "AWAITING_VERIFICATION", "COMPLETED"],
+      enum: ["SUBMITTED", "ROUTED_TO_DEPARTMENT", "ASSIGNED_TO_WORKER", "WORKER_ACCEPTED", "IN_PROGRESS", "AWAITING_VERIFICATION", "COMPLETED", "AWAITING_DEPARTMENT_ADMIN_CONFIRMATION"],
       default: "SUBMITTED",
     },
     isDeleted: { type: Boolean, default: false },
@@ -139,7 +144,7 @@ IssueSchema.pre("save", function (this: IssueDocument, next) {
     (this.dangerMetrics as any).isLifeThreatening = score >= 60;
 
     // PART 13: Maintenance vs Emergency Queue
-    this.queueType = score >= 60 ? "emergency" : "maintenance";
+    (this as any).queueType = score >= 60 ? "emergency" : "maintenance";
     if (score < 60) {
       this.status = "Pending"; // Maintenance queue triage
     }

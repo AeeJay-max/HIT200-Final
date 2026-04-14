@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "../components/ui/card";
-import { Search, Plus, MapPin, User } from "lucide-react";
+import { Search, Plus, MapPin, User, X, Calendar, Clock, ShieldCheck, Briefcase, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 import { VITE_BACKEND_URL } from "../config/config";
 import Player from "lottie-react";
@@ -18,6 +18,8 @@ import { motion } from "framer-motion";
 import { useLoader } from "../contexts/LoaderContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import NotificationFeed from "../components/NotificationFeed";
+import { Badge } from "../components/ui/badge";
+import { getAuthorityLabel } from "../utils/authorityLabels";
 
 interface Issues {
   _id: string;
@@ -37,14 +39,14 @@ interface Issues {
   assignedDepartment?: { name: string };
   departmentAdminAssignedBy?: { fullName: string; email: string };
   workerAssignedToFix?: { fullName: string };
-  deadlineTimestamp?: string;
-  escalationLevel?: number;
   resolutionVerificationTimestamp?: string;
+  workerAssignmentTimestamp?: string;
   upvotes: string[];
   workflowStage?: string;
+  createdAt?: string;
 }
 
-const MIN_LOADER_DURATION = 2500; // Minimum loader display time (ms)
+const MIN_LOADER_DURATION = 500; // Minimum loader display time (ms)
 
 const CitizenHome = () => {
   const [searchCity, setSearchCity] = useState("");
@@ -56,6 +58,7 @@ const CitizenHome = () => {
   const [statsModalOpen, setStatsModalOpen] = useState(false);
   const [assignmentStats, setAssignmentStats] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [selectedIssue, setSelectedIssue] = useState<Issues | null>(null);
 
   const handleViewStats = async (issueId: string) => {
     setStatsModalOpen(true);
@@ -145,6 +148,25 @@ const CitizenHome = () => {
     )
     : reportedIssues;
 
+  // Group and sort issues
+  const unresolvedIssues = filteredIssues
+    .filter((issue) => !["Resolved", "Closed"].includes(issue.status))
+    .sort((a, b) => {
+      const priority: Record<string, number> = {
+        "AWAITING_DEPARTMENT_ADMIN_CONFIRMATION": 0,
+        "IN_PROGRESS": 1,
+        "WORKER_ACCEPTED": 2,
+        "ASSIGNED_TO_WORKER": 3,
+        "ROUTED_TO_DEPARTMENT": 4,
+        "SUBMITTED": 5,
+        "Pending": 6,
+        "Reported": 7
+      };
+      return (priority[a.status] ?? 10) - (priority[b.status] ?? 10);
+    });
+
+  const resolvedIssues = filteredIssues.filter((issue) => ["Resolved", "Closed"].includes(issue.status));
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Rejected":
@@ -204,7 +226,7 @@ const CitizenHome = () => {
           animationData={starloader}
           style={{ height: "200px", width: "200px" }}
         />
-        <p className="text-muted-foreground mt-4">Fetching issues...</p>
+        <p className="text-muted-foreground mt-4 animate-pulse">Loading...</p>
       </div>
     );
   }
@@ -308,115 +330,204 @@ const CitizenHome = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-h-[600px] overflow-y-auto">
-                  {filteredIssues.map((issue) => (
-                    <Card
-                      key={issue._id}
-                      className={`rounded-2xl bg-white/70 dark:bg-gray-500 dark:border-white/10 backdrop-blur-md border border-gray-200 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all ${issue.status === "Rejected"
-                        ? "opacity-30 grayscale"
-                        : "opacity-100"
-                        }`}
-                    >
-                      <div className="relative h-48 overflow-hidden rounded-t-2xl">
-                        <img
-                          src={issue.image || "/placeholder.jpg"}
-                          alt={issue.title}
-                          className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                        />
-                        <div
-                          className={`absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(
-                            issue.status
-                          )}`}
-                        >
-                          {issue.status}
-                        </div>
+                <div className="space-y-12">
+                  {/* UNRESOLVED SECTION */}
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-3 border-l-4 border-blue-500 pl-4 py-1">
+                      <h3 className="text-xl font-bold text-slate-800 uppercase tracking-tight">Issues To Be Resolved</h3>
+                      <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-100">
+                        {unresolvedIssues.length} Active
+                      </Badge>
+                    </div>
+                    {unresolvedIssues.length === 0 ? (
+                      <div className="py-10 text-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+                        <p className="text-slate-400 font-medium italic">All reported issues have been addressed!</p>
                       </div>
-                      <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                        <CardTitle className="text-lg text-gray-800">
-                          {issue.title}
-                        </CardTitle>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleVote(issue._id)}
-                          className="flex items-center gap-1 text-blue-600 hover:bg-blue-50"
-                        >
-                          <span className="text-sm font-bold">{issue.upvotes?.length || 0}</span>
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-gray-500 text-sm mb-3 line-clamp-2">
-                          {issue.description}
-                        </p>
-                        <div className="space-y-2 text-xs text-gray-500">
-                          <div className="flex items-center space-x-2">
-                            <MapPin className="h-3 w-3 text-gray-400" />
-                            <span>{issue.location.address}</span>
-                            <span className="font-medium text-teal-600">
-                              • {issue.type}
-                            </span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <User className="h-3 w-3 text-gray-400" />
-                            <span>Reported by {issue.reportedBy}</span>
-                          </div>
-
-                          {/* Transparency Dashboard Info */}
-                          <div className="pt-3 mt-3 border-t border-gray-100 flex flex-col space-y-1.5">
-                            {renderStepper(issue)}
-
-                            {!issue.workerAssignedToFix && !issue.assignedDepartment && (
-                              <div className="flex justify-between items-center text-gray-700 bg-gray-50 px-2 py-1 rounded mt-2">
-                                <span className="font-semibold text-[11px] uppercase tracking-wider text-gray-500">Assignment Status</span>
-                                <span className="font-bold text-gray-500">Not Yet Assigned</span>
-                              </div>
-                            )}
-
-                            {issue.assignedDepartment && !issue.workerAssignedToFix && (
-                              <div className="flex justify-between items-center text-slate-700 bg-slate-50 px-2 py-1 rounded mt-2">
-                                <span className="font-semibold text-[11px] uppercase tracking-wider text-slate-400">Department</span>
-                                <div className="text-right">
-                                  <span className="font-semibold block">{issue.assignedDepartment.name}</span>
-                                  <span className="text-[10px] text-slate-400">Waiting for Worker Assignment</span>
-                                </div>
-                              </div>
-                            )}
-
-                            {issue.workerAssignedToFix && (
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {unresolvedIssues.map((issue) => (
+                          <Card
+                            key={issue._id}
+                            className={`rounded-2xl bg-white/70 dark:bg-gray-500 dark:border-white/10 backdrop-blur-md border border-gray-200 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all ${issue.status === "Rejected"
+                              ? "opacity-30 grayscale"
+                              : "opacity-100"
+                              }`}
+                          >
+                            <div className="relative h-48 overflow-hidden rounded-t-2xl">
+                              <img
+                                src={issue.image || "/placeholder.jpg"}
+                                alt={issue.title}
+                                className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                              />
                               <div
-                                className="flex justify-between items-center text-blue-700 bg-blue-50 px-2 py-2 rounded mt-2 cursor-pointer hover:bg-blue-100 transition-colors"
-                                onClick={() => handleViewStats(issue._id)}
+                                className={`absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(
+                                  issue.status
+                                )}`}
                               >
-                                <span className="font-semibold text-[11px] uppercase tracking-wider text-blue-400">Assigned By {issue.departmentAdminAssignedBy?.fullName || "Admin"}</span>
-                                <div className="text-right">
-                                  <span className="font-bold block">{issue.workerAssignedToFix.fullName}</span>
-                                  <span className="text-[10px] text-blue-400 underline mt-0.5 inline-block">View Performance Stats</span>
+                                {issue.status}
+                              </div>
+                            </div>
+                            <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                              <CardTitle className="text-lg text-gray-800">
+                                {issue.title}
+                              </CardTitle>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleVote(issue._id)}
+                                className="flex items-center gap-1 text-blue-600 hover:bg-blue-50"
+                              >
+                                <span className="text-sm font-bold">{issue.upvotes?.length || 0}</span>
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </CardHeader>
+                            <CardContent>
+                              <p className="text-gray-500 text-sm mb-3 line-clamp-2">
+                                {issue.description}
+                              </p>
+                              <div className="space-y-2 text-xs text-gray-500">
+                                <div className="flex items-center space-x-2">
+                                  <MapPin className="h-3 w-3 text-gray-400" />
+                                  <span>{issue.location.address}</span>
+                                  <span className="font-medium text-teal-600">
+                                    • {issue.type}
+                                  </span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <User className="h-3 w-3 text-gray-400" />
+                                  <span>Reported by {issue.reportedBy}</span>
+                                </div>
+
+                                {/* Transparency Dashboard Info */}
+                                <div className="pt-3 mt-3 border-t border-gray-100 flex flex-col space-y-1.5">
+                                  {renderStepper(issue)}
+
+                                  {!issue.workerAssignedToFix && !issue.assignedDepartment && (
+                                    <div className="flex justify-between items-center text-gray-700 bg-gray-50 px-2 py-1 rounded mt-2">
+                                      <span className="font-semibold text-[11px] uppercase tracking-wider text-gray-500">Assignment Status</span>
+                                      <span className="font-bold text-gray-500">Not Yet Assigned</span>
+                                    </div>
+                                  )}
+
+                                  {issue.assignedDepartment && !issue.workerAssignedToFix && (
+                                    <div className="flex justify-between items-center text-slate-700 bg-slate-50 px-2 py-1 rounded mt-2">
+                                      <span className="font-semibold text-[11px] uppercase tracking-wider text-slate-400">Responsible Authority</span>
+                                      <div className="text-right">
+                                        <span className="font-semibold block">{getAuthorityLabel(issue.assignedDepartment.name)}</span>
+                                        <span className="text-[10px] text-slate-400">Waiting for Worker Assignment</span>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {issue.workerAssignedToFix && (
+                                    <div
+                                      className="flex justify-between items-center text-blue-700 bg-blue-50 px-2 py-2 rounded mt-2 cursor-pointer hover:bg-blue-100 transition-colors"
+                                      onClick={() => handleViewStats(issue._id)}
+                                    >
+                                      <div className="flex flex-col">
+                                        <span className="font-semibold text-[11px] uppercase tracking-wider text-blue-400">Assigned By</span>
+                                        <span className="text-[10px] font-bold">{issue.departmentAdminAssignedBy?.fullName || "Department Admin"}</span>
+                                      </div>
+                                      <div className="text-right">
+                                        <span className="font-bold block">{issue.workerAssignedToFix.fullName}</span>
+                                        <span className="text-[10px] text-blue-400 underline mt-0.5 inline-block">View Performance Stats</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {issue.deadlineTimestamp && (
+                                    <div className="flex justify-between items-center text-rose-600 bg-rose-50 px-2 py-1 rounded">
+                                      <span className="font-semibold text-[11px] uppercase tracking-wider text-rose-400">SLA Deadline</span>
+                                      <span className="font-bold">{new Date(issue.deadlineTimestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                                    </div>
+                                  )}
+                                  {(issue.escalationLevel ?? 0) > 0 && (
+                                    <div className="flex justify-between items-center text-orange-700 bg-orange-50 px-2 py-1 rounded font-bold">
+                                      <span className="text-[11px] uppercase tracking-wider text-orange-400">Escalation Status</span>
+                                      <span>Level {issue.escalationLevel}</span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-                            )}
-                            {issue.deadlineTimestamp && !["Closed", "Resolved (Unverified)", "Resolved"].includes(issue.status) && (
-                              <div className="flex justify-between items-center text-rose-600 bg-rose-50 px-2 py-1 rounded">
-                                <span className="font-semibold text-[11px] uppercase tracking-wider text-rose-400">SLA Deadline</span>
-                                <span className="font-bold">{new Date(issue.deadlineTimestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <hr className="border-gray-100" />
+
+                  {/* RESOLVED SECTION */}
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-3 border-l-4 border-emerald-500 pl-4 py-1">
+                      <h3 className="text-xl font-bold text-slate-800 uppercase tracking-tight">Resolved Issues</h3>
+                      <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-100">
+                        {resolvedIssues.length} Completed
+                      </Badge>
+                    </div>
+                    {resolvedIssues.length === 0 ? (
+                      <div className="py-10 text-center bg-emerald-50/30 rounded-2xl border-2 border-dashed border-emerald-100">
+                        <p className="text-emerald-400 font-medium italic">No issues have been fully resolved yet.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {resolvedIssues.map((issue) => (
+                          <Card
+                            key={issue._id}
+                            onClick={() => setSelectedIssue(issue)}
+                            className="rounded-2xl bg-white/80 dark:bg-gray-700/50 backdrop-blur-md border border-emerald-100 shadow-sm opacity-90 transition-all saturate-[0.8] hover:saturate-100 cursor-pointer overflow-hidden group"
+                          >
+                            <div className="relative h-48 overflow-hidden rounded-t-2xl">
+                              <img
+                                src={issue.image || "/placeholder.jpg"}
+                                alt={issue.title}
+                                className="w-full h-full object-cover"
+                              />
+                              <div
+                                className="absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500 text-white shadow-lg flex items-center gap-1"
+                              >
+                                Resolved ✔
                               </div>
-                            )}
-                            {(issue.escalationLevel ?? 0) > 0 && (
-                              <div className="flex justify-between items-center text-orange-700 bg-orange-50 px-2 py-1 rounded font-bold">
-                                <span className="text-[11px] uppercase tracking-wider text-orange-400">Escalation Status</span>
-                                <span>Level {issue.escalationLevel}</span>
+                            </div>
+                            <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                              <CardTitle className="text-lg text-slate-700">
+                                {issue.title}
+                              </CardTitle>
+                              <div className="flex items-center gap-1 text-slate-400">
+                                <span className="text-sm font-bold">{issue.upvotes?.length || 0}</span>
+                                <Plus className="h-4 w-4 opacity-50" />
                               </div>
-                            )}
-                            {issue.resolutionVerificationTimestamp && (
-                              <div className="text-emerald-600 font-semibold bg-emerald-50 px-2 py-1 rounded mt-1 text-center">
-                                ✓ Verified Completed
+                            </CardHeader>
+                            <CardContent>
+                              <p className="text-gray-400 text-sm mb-3 line-clamp-1 italic">
+                                "{issue.description}"
+                              </p>
+                              <div className="space-y-2 text-[11px] text-slate-500 bg-emerald-50/50 p-3 rounded-xl border border-emerald-100/50">
+                                <div className="flex justify-between items-center text-emerald-700">
+                                  <span className="font-semibold uppercase tracking-wider text-[10px]">Responsible Authority</span>
+                                  <span className="font-bold">{getAuthorityLabel(issue.assignedDepartment?.name || "Municipal Authority")}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-emerald-700">
+                                  <span className="font-semibold uppercase tracking-wider text-[10px]">Assigned By</span>
+                                  <span className="font-bold">{issue.departmentAdminAssignedBy?.fullName || "Department Admin"}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-emerald-700">
+                                  <span className="font-semibold uppercase tracking-wider text-[10px]">Technician</span>
+                                  <span className="font-bold">{issue.workerAssignedToFix?.fullName || "Field Worker"}</span>
+                                </div>
+                                {issue.resolutionVerificationTimestamp && (
+                                  <div className="flex justify-between items-center text-emerald-700 pt-1 border-t border-emerald-100 mt-1">
+                                    <span className="font-semibold uppercase tracking-wider text-[10px]">Verified Date</span>
+                                    <span className="font-bold">{new Date(issue.resolutionVerificationTimestamp).toLocaleDateString()}</span>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {filteredIssues.length === 0 && (
@@ -513,6 +624,135 @@ const CitizenHome = () => {
               Close
             </Button>
           </div>
+        </div>
+      )}
+
+      {/* Detailed Issue Modal */}
+      {selectedIssue && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 overflow-y-auto">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
+          >
+            <button
+              onClick={() => setSelectedIssue(null)}
+              className="absolute top-6 right-6 p-2 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors z-30"
+            >
+              <X className="h-5 w-5 text-slate-600" />
+            </button>
+
+            <div className="relative h-64 sm:h-80 w-full">
+              <img
+                src={selectedIssue.image || "/placeholder.jpg"}
+                className="w-full h-full object-cover"
+                alt="Resolved Issue"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+              <div className="absolute bottom-8 left-8">
+                <Badge className="bg-emerald-500 text-white border-0 mb-3 px-3 py-1 text-sm">Resolved ✔</Badge>
+                <h2 className="text-3xl font-bold text-white tracking-tight">{selectedIssue.title}</h2>
+              </div>
+            </div>
+
+            <div className="p-8 space-y-8">
+              <section>
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Audit Timeline</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-start gap-3">
+                    <Calendar className="h-5 w-5 text-[#0577b7] shrink-0 mt-1" />
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Reported</p>
+                      <p className="text-sm font-bold text-slate-700">{new Date(selectedIssue.reportedAt).toLocaleDateString()}</p>
+                      <p className="text-[10px] text-slate-400 font-medium">{new Date(selectedIssue.reportedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                  </div>
+                  <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 flex items-start gap-3">
+                    <Clock className="h-5 w-5 text-blue-600 shrink-0 mt-1" />
+                    <div>
+                      <p className="text-[10px] font-bold text-blue-400 uppercase tracking-tight">Assigned</p>
+                      <p className="text-sm font-bold text-blue-700">
+                        {selectedIssue.workerAssignmentTimestamp ? new Date(selectedIssue.workerAssignmentTimestamp).toLocaleDateString() : "Auto-Assigned"}
+                      </p>
+                      {selectedIssue.workerAssignmentTimestamp && <p className="text-[10px] text-blue-400 font-medium">{new Date(selectedIssue.workerAssignmentTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>}
+                    </div>
+                  </div>
+                  <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 flex items-start gap-3">
+                    <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0 mt-1" />
+                    <div>
+                      <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-tight">Resolved</p>
+                      <p className="text-sm font-bold text-emerald-700">{selectedIssue.resolutionVerificationTimestamp ? new Date(selectedIssue.resolutionVerificationTimestamp).toLocaleDateString() : "Completed"}</p>
+                      {selectedIssue.resolutionVerificationTimestamp && <p className="text-[10px] text-emerald-400 font-medium">{new Date(selectedIssue.resolutionVerificationTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>}
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                <div>
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Responsibility Data</h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 bg-slate-100 rounded-full flex items-center justify-center">
+                        <ShieldCheck className="h-5 w-5 text-slate-500" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">Assigned By</p>
+                        <p className="text-sm font-bold text-slate-700">{selectedIssue.departmentAdminAssignedBy?.fullName || "Municipal Admin"}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 bg-slate-100 rounded-full flex items-center justify-center">
+                        <Briefcase className="h-5 w-5 text-slate-500" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">Deployed Technician</p>
+                        <p className="text-sm font-bold text-slate-700">{selectedIssue.workerAssignedToFix?.fullName || "Field Worker"}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Context</h3>
+                  <div className="space-y-4 text-sm">
+                    <div className="flex items-start gap-4">
+                      <div className="h-10 w-10 bg-slate-100 rounded-full flex items-center justify-center shrink-0">
+                        <MapPin className="h-5 w-5 text-slate-500" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">Location</p>
+                        <p className="text-slate-700 font-medium leading-relaxed">{selectedIssue.location.address}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-4">
+                      <div className="h-10 w-10 bg-slate-100 rounded-full flex items-center justify-center shrink-0">
+                        <Settings className="h-5 w-5 text-slate-500" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">Authority</p>
+                        <p className="text-slate-700 font-bold">{getAuthorityLabel(selectedIssue.assignedDepartment?.name || "Municipal Authority")}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Issue Description</h3>
+                <p className="text-slate-600 leading-relaxed text-sm italic">"{selectedIssue.description}"</p>
+              </section>
+
+              <div className="pt-4">
+                <Button
+                  onClick={() => setSelectedIssue(null)}
+                  className="w-full h-12 rounded-2xl bg-slate-900 hover:bg-black text-white font-bold transition-all shadow-lg hover:shadow-xl"
+                >
+                  Close Archive Record
+                </Button>
+              </div>
+            </div>
+          </motion.div>
         </div>
       )}
     </motion.div>

@@ -52,15 +52,21 @@ export default function IssueDetailsPanel({ issue, onClose }: { issue: any, onCl
                 <p><strong>Location:</strong> {issue.location?.address}</p>
                 <div>
                     <label className="text-sm font-semibold">Assign Worker</label>
-                    <div className="flex gap-2 mt-1">
-                        <select className="p-2 border rounded text-slate-700 font-semibold" value={selectedWorker || ""} onChange={(e) => setSelectedWorker(e.target.value)}>
-                            <option value="" disabled>Select Worker</option>
-                            {workers.map((w: any) => (
-                                <option key={w._id} value={w._id}>{w.fullName}</option>
-                            ))}
-                        </select>
-                        <Button onClick={handleAssignWorker}>Assign Worker</Button>
-                    </div>
+                    {issue.status === "Resolved" ? (
+                        <div className="bg-emerald-50 text-emerald-700 p-3 rounded-lg border border-emerald-100 text-xs font-bold mt-1">
+                            This issue has already been resolved and verified. No further assignments allowed.
+                        </div>
+                    ) : (
+                        <div className="flex gap-2 mt-1">
+                            <select className="p-2 border rounded text-slate-700 font-semibold" value={selectedWorker || ""} onChange={(e) => setSelectedWorker(e.target.value)}>
+                                <option value="" disabled>Select Worker</option>
+                                {workers.map((w: any) => (
+                                    <option key={w._id} value={w._id}>{w.fullName}</option>
+                                ))}
+                            </select>
+                            <Button onClick={handleAssignWorker}>Assign Worker</Button>
+                        </div>
+                    )}
                 </div>
                 <Button variant="outline" onClick={onClose}>Close</Button>
             </CardContent>

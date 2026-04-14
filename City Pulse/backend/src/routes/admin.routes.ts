@@ -12,6 +12,9 @@ import {
   updateIssueStatus,
   getAnalytics,
   getRadiusHotspots,
+  getAllAdmins,
+  verifyIssueCompletion,
+  manualEscalationAssign,
 } from "../controllers/admin.controller";
 import { getIssues } from "../controllers/issues.controllers";
 
@@ -51,5 +54,9 @@ router.get("/admin/schedules", authMiddleware, getSchedules);
 
 router.get("/admin/analytics", authMiddleware, requireRole(["admin"]), getAnalytics);
 router.post("/admin/analytics/radius", authMiddleware, requireRole(["admin"]), getRadiusHotspots);
+
+router.put("/admin/issue/:id/verify", authMiddleware, requireRole(["admin"]), verifyIssueCompletion);
+router.post("/admin/issue/:id/escalation-assign", authMiddleware, requireRole(["MAIN_ADMIN"]), manualEscalationAssign);
+router.get("/admins", authMiddleware, requireRole(["MAIN_ADMIN"]), getAllAdmins);
 
 export default router;

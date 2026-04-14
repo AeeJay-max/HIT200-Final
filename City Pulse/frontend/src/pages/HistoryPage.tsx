@@ -3,9 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Button } from "../components/ui/button";
 import { VITE_BACKEND_URL } from "../config/config";
 import HeaderAfterAuth from "../components/HeaderAfterAuth";
-import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
-import { MapPin, Calendar, User, UserCheck, CheckCircle } from "lucide-react";
+import { MapPin, Calendar, UserCheck, CheckCircle } from "lucide-react";
+import { getAuthorityLabel } from "../utils/authorityLabels";
 
 interface Timeline {
     reportedAt?: string;
@@ -32,13 +32,12 @@ interface IssueHistory {
 }
 
 const HistoryPage = () => {
-    const { user } = useAuth();
     const [issues, setIssues] = useState<IssueHistory[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedIssue, setSelectedIssue] = useState<IssueHistory | null>(null);
 
     // Hardcoded departments list since we don't know the department API, could be derived from issueType mapping but let's just make it generic or user filtered
-    const [selectedDeptId, setSelectedDeptId] = useState("");
+    const [selectedDeptId] = useState("");
 
     const fetchHistory = async () => {
         setLoading(true);
@@ -121,7 +120,7 @@ const HistoryPage = () => {
                                         {issue.assignedDepartment?.name && (
                                             <div className="flex items-center gap-1">
                                                 <UserCheck size={14} className="text-amber-500" />
-                                                <span>Dept: {issue.assignedDepartment.name}</span>
+                                                <span>Authority: {getAuthorityLabel(issue.assignedDepartment.name)}</span>
                                             </div>
                                         )}
                                     </div>

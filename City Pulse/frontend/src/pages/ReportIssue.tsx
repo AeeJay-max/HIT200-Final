@@ -142,12 +142,12 @@ const ReportIssue = () => {
   };
 
   const issueTypes = [
-    { value: "Life-Threatening Potholes", label: "Potholes (Life-Threatening)" },
-    { value: "Burst Water Pipes", label: "Burst Water Pipes" },
-    { value: "Sewer Failures", label: "Sewer Failures" },
-    { value: "Streetlight Failures", label: "Streetlights" },
-    { value: "Traffic Light Failures", label: "Traffic Lights" },
-    { value: "Illegal Dumping Sites", label: "Illegal Dumping" },
+    { value: "Life-Threatening Potholes", label: "Potholes (Critical - TSCZ)" },
+    { value: "Burst Water Pipes", label: "ZINWA - Water Pipe Burst" },
+    { value: "Sewer Failures", label: "ZINWA - Sewer Failure" },
+    { value: "Streetlight Failures", label: "ZESA - Streetlight Failure" },
+    { value: "Traffic Light Failures", label: "TSCZ - Traffic Light Failure" },
+    { value: "Illegal Dumping Sites", label: "EMA - Illegal Dumping" },
     { value: "Other", label: "Other" },
   ];
 

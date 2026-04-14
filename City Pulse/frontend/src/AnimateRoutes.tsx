@@ -17,6 +17,9 @@ import AssignWorkerPage from "./pages/AssignWorkerPage";
 import TransparencyDashboard from "./pages/TransparencyDashboard";
 import Notifications from "./pages/Notifications";
 import HistoryPage from "./pages/HistoryPage";
+import WorkerCompleteIssue from "./pages/WorkerCompleteIssue.tsx";
+import AdminReviewIssue from "./pages/AdminReviewIssue.tsx";
+import MainAdminEscalations from "./pages/MainAdminEscalations.tsx";
 
 const pageTransition = {
   initial: { opacity: 0, y: 40 },
@@ -189,6 +192,36 @@ export default function AnimatedRoutes() {
             <ProtectedRoute>
               <MotionWrapper>
                 <HistoryPage />
+              </MotionWrapper>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/worker-complete-issue/:issueId"
+          element={
+            <ProtectedRoute requiredRole="worker">
+              <MotionWrapper>
+                <WorkerCompleteIssue />
+              </MotionWrapper>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin-review/:issueId"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <MotionWrapper>
+                <AdminReviewIssue />
+              </MotionWrapper>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/main-admin-escalations"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <MotionWrapper>
+                <MainAdminEscalations />
               </MotionWrapper>
             </ProtectedRoute>
           }

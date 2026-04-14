@@ -22,7 +22,14 @@ self.addEventListener('fetch', (event) => {
 
     event.respondWith(
         caches.match(event.request).then((response) => {
-            return response || fetch(event.request);
+            return response || fetch(event.request).catch(err => {
+                console.warn('[SW] Fetch failed:', event.request.url, err);
+                // Return a generic error response or just let it fail silently
+                return new Response('Network error occurred', {
+                    status: 408,
+                    statusText: 'Network error occurred'
+                });
+            });
         })
     );
 });

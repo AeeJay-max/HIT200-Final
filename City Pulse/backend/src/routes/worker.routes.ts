@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authMiddleware, requireRole } from "../middlerware/auth.middleware";
-import { createWorker, getAssignedIssues, assignWorkerToIssue, markIssueResolved, getWorkerProfile, getWorkersByDepartment, getWorkersForAdminDepartment } from "../controllers/worker.controller";
+import { createWorker, getAssignedIssues, assignWorkerToIssue, submitIssueCompletion, markIssueResolved, getWorkerProfile, getWorkersByDepartment, getWorkersForAdminDepartment } from "../controllers/worker.controller";
+import { upload } from "../middlerware/upload.middleware";
 import { workerSignup, workerLogin } from "../controllers/workerAuth.controllers";
 
 const router = Router();
@@ -20,6 +21,7 @@ router.post("/worker/assign", authMiddleware, requireRole(["admin"]), assignWork
 // Worker Dashboard endpoints
 router.get("/worker/issues", authMiddleware, requireRole(["worker"]), getAssignedIssues);
 router.put("/worker/issues/:issueId/resolve", authMiddleware, requireRole(["worker"]), markIssueResolved);
+router.post("/worker/issues/:issueId/complete", authMiddleware, requireRole(["worker"]), upload.single("completionImage"), submitIssueCompletion);
 
 // Profile
 router.get("/worker/profile/:workerId", authMiddleware, requireRole(["worker"]), getWorkerProfile);
