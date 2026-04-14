@@ -42,7 +42,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getAssignmentStats = exports.reassignWorker = exports.rejectAssignment = exports.acceptAssignment = exports.getServiceOutages = exports.getPublicSchedule = exports.getVotes = exports.getIssueTrackingStatus = exports.assignDepartmentAdmin = exports.assignWorker = exports.getPublicAnalytics = exports.updateDumpingStage = exports.voteIssue = exports.upvoteIssue = exports.getIssues = exports.createIssue = void 0;
+exports.getIssueHistory = exports.getAssignmentStats = exports.reassignWorker = exports.rejectAssignment = exports.acceptAssignment = exports.getServiceOutages = exports.getPublicSchedule = exports.getVotes = exports.getIssueTrackingStatus = exports.assignDepartmentAdmin = exports.assignWorker = exports.getPublicAnalytics = exports.updateDumpingStage = exports.voteIssue = exports.upvoteIssue = exports.getIssues = exports.createIssue = void 0;
 const issue_model_1 = require("../models/issue.model");
 const multimedia_model_1 = require("../models/multimedia.model");
 const department_model_1 = require("../models/department.model");
@@ -625,3 +625,70 @@ const getAssignmentStats = (req, res) => __awaiter(void 0, void 0, void 0, funct
     }
 });
 exports.getAssignmentStats = getAssignmentStats;
+const getIssueHistory = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        let matchQuery = {
+            status: { $in: ["Resolved", "Closed", "Resolved (Unverified)", "COMPLETED"] }
+        };
+        const adminId = req.adminId;
+        const citizenId = req.citizenId;
+        const workerId = req.workerId;
+        if (adminId) {
+            const adminReq = yield admin_model_1.AdminModel.findById(adminId).lean();
+            if (adminReq) {
+                if (adminReq.role !== "MAIN_ADMIN") {
+                    const dept = yield department_model_1.DepartmentModel.findOne({ name: adminReq.department }).lean();
+                    if (dept) {
+                        matchQuery.assignedDepartment = dept._id;
+                    }
+                    else {
+                        // Fallback if department name doesn't match any ID
+                        matchQuery.assignedDepartment = new mongoose.Types.ObjectId();
+                    }
+                }
+                else {
+                    const deptId = req.query.departmentId;
+                    if (deptId) {
+                        if (mongoose.Types.ObjectId.isValid(deptId)) {
+                            matchQuery.assignedDepartment = deptId;
+                        }
+                        else {
+                            const dept = yield department_model_1.DepartmentModel.findOne({ name: deptId }).lean();
+                            if (dept)
+                                matchQuery.assignedDepartment = dept._id;
+                        }
+                    }
+                }
+            }
+        }
+        else if (citizenId) {
+            const deptId = req.query.departmentId;
+            if (deptId) {
+                if (mongoose.Types.ObjectId.isValid(deptId)) {
+                    matchQuery.assignedDepartment = deptId;
+                }
+                else {
+                    const dept = yield department_model_1.DepartmentModel.findOne({ name: deptId }).lean();
+                    if (dept)
+                        matchQuery.assignedDepartment = dept._id;
+                }
+            }
+        }
+        else if (workerId) {
+            matchQuery.workerAssignedToFix = workerId;
+        }
+        const issues = yield issue_model_1.IssueModel.find(matchQuery)
+            .populate("citizenId", "fullName email")
+            .populate("assignedDepartment", "name")
+            .populate("departmentAdminAssignedBy", "fullName email")
+            .populate("workerAssignedToFix", "fullName")
+            .sort({ "timeline.resolvedAt": -1, resolutionTimestamp: -1, updatedAt: -1 })
+            .lean();
+        res.status(200).json({ success: true, history: issues });
+    }
+    catch (err) {
+        console.error("Error fetching issue history:", err);
+        res.status(500).json({ message: "Something went wrong" });
+    }
+});
+exports.getIssueHistory = getIssueHistory;

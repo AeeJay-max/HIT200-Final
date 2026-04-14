@@ -66,6 +66,10 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
 
         const newSocket = io(VITE_BACKEND_URL, {
             auth: { token: authToken },
+            transports: ["polling", "websocket"],
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000,
         });
 
         newSocket.on("connect", () => {

@@ -44,4 +44,5 @@ router.patch("/issues/:id/reassign-worker", auth_middleware_1.authMiddleware, is
 router.get("/issues/:id/tracking", issues_controllers_1.getIssueTrackingStatus);
 router.get("/issues/:id/votes", auth_middleware_1.authMiddleware, issues_controllers_1.getVotes);
 router.get("/issues/:id/assignment-stats", auth_middleware_1.authMiddleware, issues_controllers_1.getAssignmentStats);
+router.get("/history", auth_middleware_1.authMiddleware, issues_controllers_1.getIssueHistory);
 exports.default = router;

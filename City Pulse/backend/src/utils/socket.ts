@@ -10,6 +10,8 @@ export const initializeSocket = (server: HttpServer) => {
             methods: ["GET", "POST", "PUT", "DELETE"],
             credentials: true,
         },
+        transports: ["polling", "websocket"],
+        allowEIO3: true,
     });
 
     io.on("connection", (socket: Socket) => {

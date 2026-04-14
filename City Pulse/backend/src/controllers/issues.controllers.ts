@@ -674,3 +674,65 @@ export const getAssignmentStats = async (req: Request, res: Response): Promise<v
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+export const getIssueHistory = async (req: Request, res: Response): Promise<void> => {
+  try {
+    let matchQuery: any = {
+      status: { $in: ["Resolved", "Closed", "Resolved (Unverified)", "COMPLETED"] }
+    };
+
+    const adminId = (req as any).adminId;
+    const citizenId = (req as any).citizenId;
+    const workerId = (req as any).workerId;
+
+    if (adminId) {
+      const adminReq = await AdminModel.findById(adminId).lean();
+      if (adminReq) {
+        if (adminReq.role !== "MAIN_ADMIN") {
+          const dept = await DepartmentModel.findOne({ name: adminReq.department }).lean();
+          if (dept) {
+            matchQuery.assignedDepartment = dept._id;
+          } else {
+            // Fallback if department name doesn't match any ID
+            matchQuery.assignedDepartment = new mongoose.Types.ObjectId();
+          }
+        } else {
+          const deptId = req.query.departmentId as string;
+          if (deptId) {
+            if (mongoose.Types.ObjectId.isValid(deptId)) {
+              matchQuery.assignedDepartment = deptId;
+            } else {
+              const dept = await DepartmentModel.findOne({ name: deptId }).lean();
+              if (dept) matchQuery.assignedDepartment = dept._id;
+            }
+          }
+        }
+      }
+    } else if (citizenId) {
+      const deptId = req.query.departmentId as string;
+      if (deptId) {
+        if (mongoose.Types.ObjectId.isValid(deptId)) {
+          matchQuery.assignedDepartment = deptId;
+        } else {
+          const dept = await DepartmentModel.findOne({ name: deptId }).lean();
+          if (dept) matchQuery.assignedDepartment = dept._id;
+        }
+      }
+    } else if (workerId) {
+      matchQuery.workerAssignedToFix = workerId;
+    }
+
+    const issues = await IssueModel.find(matchQuery)
+      .populate("citizenId", "fullName email")
+      .populate("assignedDepartment", "name")
+      .populate("departmentAdminAssignedBy", "fullName email")
+      .populate("workerAssignedToFix", "fullName")
+      .sort({ "timeline.resolvedAt": -1, resolutionTimestamp: -1, updatedAt: -1 })
+      .lean();
+
+    res.status(200).json({ success: true, history: issues });
+  } catch (err) {
+    console.error("Error fetching issue history:", err);
+    res.status(500).json({ message: "Something went wrong" });
+  }
+};

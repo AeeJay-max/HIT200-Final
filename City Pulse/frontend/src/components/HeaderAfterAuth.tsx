@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Button } from "./ui/button.tsx";
-import { LogIn, LogOut, Shield, LayoutDashboard, Bell } from "lucide-react";
+import { LogIn, LogOut, Shield, LayoutDashboard, Bell, History } from "lucide-react";
 import logo from '../assets/logo2.png';
 import { useAuth } from "../contexts/AuthContext.tsx";
 import { ThemeToggle } from "./ThemeToggle.tsx";
@@ -59,6 +59,11 @@ const Header: React.FC<HeaderProps> = () => {
                         {unreadCount > 9 ? '9+' : unreadCount}
                       </span>
                     )}
+                  </Button>
+                </Link>
+                <Link to="/history">
+                  <Button variant="ghost" size="sm" className="relative p-2" title="History">
+                    <History className="h-5 w-5 text-slate-500 hover:text-blue-600" />
                   </Button>
                 </Link>
                 <span className="text-sm text-muted-foreground hidden sm:block">

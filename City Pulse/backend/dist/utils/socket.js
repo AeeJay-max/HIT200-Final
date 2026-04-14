@@ -10,6 +10,8 @@ const initializeSocket = (server) => {
             methods: ["GET", "POST", "PUT", "DELETE"],
             credentials: true,
         },
+        transports: ["polling", "websocket"],
+        allowEIO3: true,
     });
     io.on("connection", (socket) => {
         console.log(`Client connected to real-time sync: ${socket.id}`);

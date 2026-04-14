@@ -16,6 +16,7 @@ import WorkerDashboard from "./pages/WorkerDashboard";
 import AssignWorkerPage from "./pages/AssignWorkerPage";
 import TransparencyDashboard from "./pages/TransparencyDashboard";
 import Notifications from "./pages/Notifications";
+import HistoryPage from "./pages/HistoryPage";
 
 const pageTransition = {
   initial: { opacity: 0, y: 40 },
@@ -178,6 +179,16 @@ export default function AnimatedRoutes() {
             <ProtectedRoute>
               <MotionWrapper>
                 <Notifications />
+              </MotionWrapper>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/history"
+          element={
+            <ProtectedRoute>
+              <MotionWrapper>
+                <HistoryPage />
               </MotionWrapper>
             </ProtectedRoute>
           }

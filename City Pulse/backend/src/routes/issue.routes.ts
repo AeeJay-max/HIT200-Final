@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { upload } from "../middlerware/upload.middleware";
-import { createIssue, getIssues, upvoteIssue, updateDumpingStage, getPublicAnalytics, assignWorker, getIssueTrackingStatus, voteIssue, assignDepartmentAdmin, getVotes, getPublicSchedule, getServiceOutages, acceptAssignment, rejectAssignment, reassignWorker, getAssignmentStats } from "../controllers/issues.controllers";
+import { createIssue, getIssues, upvoteIssue, updateDumpingStage, getPublicAnalytics, assignWorker, getIssueTrackingStatus, voteIssue, assignDepartmentAdmin, getVotes, getPublicSchedule, getServiceOutages, acceptAssignment, rejectAssignment, reassignWorker, getAssignmentStats, getIssueHistory } from "../controllers/issues.controllers";
 import { authMiddleware } from "../middlerware/auth.middleware";
 
 const router = Router();
@@ -55,5 +55,6 @@ router.patch("/issues/:id/reassign-worker", authMiddleware, reassignWorker);
 router.get("/issues/:id/tracking", getIssueTrackingStatus);
 router.get("/issues/:id/votes", authMiddleware, getVotes);
 router.get("/issues/:id/assignment-stats", authMiddleware, getAssignmentStats);
+router.get("/history", authMiddleware, getIssueHistory);
 
 export default router;

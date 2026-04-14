@@ -6,6 +6,12 @@ import Player from "lottie-react";
 import starloader from "../assets/animations/starloder.json";
 import DepartmentResponseTimeChart from "./DepartmentResponseTimeChart";
 import WorkerPerformanceChart from "./WorkerPerformanceChart";
+import {
+    PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
+    BarChart, Bar, XAxis, YAxis, CartesianGrid
+} from "recharts";
+
+const CHART_COLORS = ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#14b8a6', '#f43f5e'];
 
 export default function AnalyticsPanel() {
     const [data, setData] = useState<any>(null);
@@ -43,13 +49,27 @@ export default function AnalyticsPanel() {
             <Card>
                 <CardHeader><CardTitle>Issues by Status</CardTitle></CardHeader>
                 <CardContent>
-                    <div className="space-y-4">
-                        {data.byStatus?.map((s: any) => (
-                            <div key={s._id} className="flex justify-between items-center bg-gray-50 p-3 rounded border">
-                                <span className="font-medium text-gray-700">{s._id}</span>
-                                <span className="text-xl font-bold text-blue-600">{s.count}</span>
-                            </div>
-                        ))}
+                    <div className="h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={data.byStatus}
+                                    dataKey="count"
+                                    nameKey="_id"
+                                    cx="50%"
+                                    cy="50%"
+                                    outerRadius={90}
+                                    fill="#8884d8"
+                                    label
+                                >
+                                    {data.byStatus?.map((entry: any, index: number) => (
+                                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip />
+                                <Legend />
+                            </PieChart>
+                        </ResponsiveContainer>
                     </div>
                 </CardContent>
             </Card>
@@ -57,18 +77,16 @@ export default function AnalyticsPanel() {
             <Card>
                 <CardHeader><CardTitle>Issues by Category</CardTitle></CardHeader>
                 <CardContent>
-                    <div className="space-y-4">
-                        {data.byCategory?.map((c: any) => (
-                            <div key={c._id} className="flex flex-col gap-1">
-                                <div className="flex justify-between text-sm font-medium text-gray-600">
-                                    <span>{c._id}</span>
-                                    <span>{c.count}</span>
-                                </div>
-                                <div className="w-full bg-gray-200 rounded-full h-2">
-                                    <div className="bg-sky-500 h-2 rounded-full" style={{ width: `${Math.min((c.count / data.totalIssues) * 100, 100)}%` }}></div>
-                                </div>
-                            </div>
-                        ))}
+                    <div className="h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={data.byCategory} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="_id" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={60} />
+                                <YAxis />
+                                <Tooltip cursor={{ fill: 'transparent' }} />
+                                <Bar dataKey="count" fill="#0284c7" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
                     </div>
                 </CardContent>
             </Card>
@@ -76,19 +94,39 @@ export default function AnalyticsPanel() {
             <Card className="md:col-span-2">
                 <CardHeader><CardTitle className="text-sky-700">District Governance Overview</CardTitle></CardHeader>
                 <CardContent>
+                    <div className="h-[350px] w-full mb-8">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={districts} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis
+                                    dataKey="_id"
+                                    label={{ value: 'Districts', position: 'insideBottom', offset: -45 }}
+                                    tick={{ fontSize: 12 }}
+                                    angle={-45}
+                                    textAnchor="end"
+                                />
+                                <YAxis label={{ value: 'Issues', angle: -90, position: 'insideLeft' }} />
+                                <Tooltip cursor={{ fill: '#f1f5f9' }} />
+                                <Legend verticalAlign="top" height={36} />
+                                <Bar name="Total Issues" dataKey="totalIssues" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                                <Bar name="Resolved" dataKey="resolvedIssues" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         {districts?.map((d: any) => (
-                            <div key={d._id} className="p-4 bg-white border rounded-xl shadow-sm">
-                                <p className="text-xs font-bold text-slate-400 uppercase">{d._id || "Unassigned"}</p>
-                                <p className="text-2xl font-black text-[#0577b7]">{d.totalIssues}</p>
+                            <div key={d._id} className="p-4 bg-white dark:bg-slate-800 border rounded-xl shadow-sm hover:shadow-md transition-shadow">
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">{d._id || "Unassigned"}</p>
+                                <p className="text-2xl font-black text-[#0577b7] dark:text-sky-400">{d.totalIssues}</p>
                                 <div className="mt-2 text-[10px] space-y-1">
-                                    <div className="flex justify-between">
-                                        <span>Resolved</span>
-                                        <span className="text-emerald-600 font-bold">{d.resolvedIssues}</span>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-slate-500">Resolved</span>
+                                        <span className="text-emerald-600 font-bold bg-emerald-50 px-1 rounded">{d.resolvedIssues}</span>
                                     </div>
-                                    <div className="flex justify-between">
-                                        <span>Priority Avg</span>
-                                        <span className="text-orange-600 font-bold">{Math.round(d.avgPriorityScore || 0)}</span>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-slate-500">Priority Avg</span>
+                                        <span className="text-orange-600 font-bold bg-orange-50 px-1 rounded">{Math.round(d.avgPriorityScore || 0)}</span>
                                     </div>
                                 </div>
                             </div>
