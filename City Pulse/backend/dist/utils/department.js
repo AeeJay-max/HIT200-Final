@@ -3,12 +3,11 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getCategoriesForDepartment = exports.calculateSlaDeadline = exports.getDepartmentForIssueCategory = exports.SlaMappingHrs = exports.DepartmentIssueMapping = void 0;
 exports.DepartmentIssueMapping = {
-    "Roads Department": ["Life-Threatening Potholes"],
-    "Water Department": ["Burst Water Pipes"],
-    "Sanitation Department": ["Sewer Failures"],
-    "Electrical Department": ["Streetlight Failures"],
-    "Traffic Control Department": ["Traffic Light Failures"],
-    "Environmental Department": ["Illegal Dumping Sites"],
+    "City Council": ["Streetlight Failures", "Burst Water Pipes", "Sewer Failures"],
+    "ZINWA": ["Water Supply Problems"],
+    "ZESA": ["Electricity Supply Problems"],
+    "EMA": ["Illegal Dumping Sites"],
+    "Traffic Safety Council of Zimbabwe": ["Life-Threatening Potholes", "Traffic Light Failures"],
 };
 exports.SlaMappingHrs = {
     "Life-Threatening Potholes": 24,
@@ -16,7 +15,9 @@ exports.SlaMappingHrs = {
     "Sewer Failures": 18,
     "Streetlight Failures": 72,
     "Traffic Light Failures": 12,
-    "Illegal Dumping Sites": 48
+    "Illegal Dumping Sites": 48,
+    "Water Supply Problems": 24,
+    "Electricity Supply Problems": 24
 };
 // Gets the required Department string based on issue type
 const getDepartmentForIssueCategory = (category) => {

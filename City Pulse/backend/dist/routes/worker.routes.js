@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_middleware_1 = require("../middlerware/auth.middleware");
 const worker_controller_1 = require("../controllers/worker.controller");
+const upload_middleware_1 = require("../middlerware/upload.middleware");
 const workerAuth_controllers_1 = require("../controllers/workerAuth.controllers");
 const router = (0, express_1.Router)();
 // Auth for Workers
@@ -17,6 +18,7 @@ router.post("/worker/assign", auth_middleware_1.authMiddleware, (0, auth_middlew
 // Worker Dashboard endpoints
 router.get("/worker/issues", auth_middleware_1.authMiddleware, (0, auth_middleware_1.requireRole)(["worker"]), worker_controller_1.getAssignedIssues);
 router.put("/worker/issues/:issueId/resolve", auth_middleware_1.authMiddleware, (0, auth_middleware_1.requireRole)(["worker"]), worker_controller_1.markIssueResolved);
+router.post("/worker/issues/:issueId/complete", auth_middleware_1.authMiddleware, (0, auth_middleware_1.requireRole)(["worker"]), upload_middleware_1.upload.single("completionImage"), worker_controller_1.submitIssueCompletion);
 // Profile
 router.get("/worker/profile/:workerId", auth_middleware_1.authMiddleware, (0, auth_middleware_1.requireRole)(["worker"]), worker_controller_1.getWorkerProfile);
 exports.default = router;

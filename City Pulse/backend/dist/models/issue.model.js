@@ -22,6 +22,8 @@ const IssueSchema = new mongoose_1.Schema({
             "Streetlight Failures",
             "Traffic Light Failures",
             "Illegal Dumping Sites",
+            "Water Supply Problems",
+            "Electricity Supply Problems",
         ],
         required: true,
     },
@@ -44,12 +46,16 @@ const IssueSchema = new mongoose_1.Schema({
     },
     status: {
         type: String,
-        enum: ["Reported", "In Progress", "Resolved", "Rejected", "Pending", "Escalated", "Worker Assigned", "Resolved (Unverified)", "Closed", "SUBMITTED", "ROUTED_TO_DEPARTMENT", "ASSIGNED_TO_WORKER", "WORKER_ACCEPTED", "AWAITING_VERIFICATION", "COMPLETED", "IN_PROGRESS"],
+        enum: ["Reported", "In Progress", "Resolved", "Rejected", "Pending", "Escalated", "Worker Assigned", "Resolved (Unverified)", "Closed", "SUBMITTED", "ROUTED_TO_DEPARTMENT", "ASSIGNED_TO_WORKER", "WORKER_ACCEPTED", "AWAITING_VERIFICATION", "COMPLETED", "IN_PROGRESS", "AWAITING_DEPARTMENT_ADMIN_CONFIRMATION"],
         default: "SUBMITTED",
     },
     location: {
         type: locationSchema,
         required: true,
+    },
+    geoJSON: {
+        type: { type: String, enum: ["Point"], default: "Point" },
+        coordinates: { type: [Number] } // [lng, lat] - Populated by pre-save hook
     },
     media: [{
             type: mongoose_1.Schema.Types.ObjectId,
@@ -108,12 +114,17 @@ const IssueSchema = new mongoose_1.Schema({
     },
     district: { type: String },
     priorityScore: { type: Number, default: 0 },
-    resolutionQualityVerifiedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "Admin" },
+    completionMetadata: {
+        completionImage: String,
+        completionTimestamp: Date,
+        completionNotes: String,
+    },
+    resolutionVerifiedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "Admin" },
     resolutionVerificationTimestamp: { type: Date },
     overdueStatus: { type: Boolean, default: false },
     workflowStage: {
         type: String,
-        enum: ["SUBMITTED", "ROUTED_TO_DEPARTMENT", "ASSIGNED_TO_WORKER", "WORKER_ACCEPTED", "IN_PROGRESS", "AWAITING_VERIFICATION", "COMPLETED"],
+        enum: ["SUBMITTED", "ROUTED_TO_DEPARTMENT", "ASSIGNED_TO_WORKER", "WORKER_ACCEPTED", "IN_PROGRESS", "AWAITING_VERIFICATION", "COMPLETED", "RESOLVED", "AWAITING_DEPARTMENT_ADMIN_CONFIRMATION"],
         default: "SUBMITTED",
     },
     isDeleted: { type: Boolean, default: false },
@@ -130,10 +141,14 @@ IssueSchema.pre("save", function (next) {
         this.dangerMetrics.autoSeverityScore = score;
         this.dangerMetrics.isLifeThreatening = score >= 60;
         // PART 13: Maintenance vs Emergency Queue
-        this.queueType = score >= 60 ? "emergency" : "maintenance";
         if (score < 60) {
-            this.status = "Pending"; // Maintenance queue triage
+            // Only force Pending if not already assigned/in-progress
+            const initialStages = ["SUBMITTED", "Reported"];
+            if (this.status && initialStages.includes(this.status)) {
+                this.status = "Pending"; // Maintenance queue triage
+            }
         }
+        this.queueType = score >= 60 ? "emergency" : "maintenance";
     }
     // PART 12: Emergency Infrastructure Escalation
     const emergencyCategories = ["Traffic Light Failures", "Burst Water Pipes", "Power Outage", "Bridge Damage"];
@@ -164,7 +179,17 @@ IssueSchema.pre("save", function (next) {
     }
     next();
 });
-IssueSchema.index({ location: "2dsphere" });
+IssueSchema.pre("validate", function (next) {
+    // Sync geoJSON coordinates with location fields
+    if (this.location && typeof this.location.longitude === "number" && typeof this.location.latitude === "number") {
+        this.geoJSON = {
+            type: "Point",
+            coordinates: [this.location.longitude, this.location.latitude]
+        };
+    }
+    next();
+});
+IssueSchema.index({ geoJSON: "2dsphere" });
 IssueSchema.index({ deadlineTimestamp: 1 });
 IssueSchema.index({ assignedDepartment: 1 });
 IssueSchema.index({ severity: 1 });

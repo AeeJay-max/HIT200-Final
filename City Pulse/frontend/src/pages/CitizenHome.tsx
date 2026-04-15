@@ -409,28 +409,33 @@ const CitizenHome = () => {
                                     </div>
                                   )}
 
-                                  {issue.assignedDepartment && !issue.workerAssignedToFix && (
-                                    <div className="flex justify-between items-center text-slate-700 bg-slate-50 px-2 py-1 rounded mt-2">
-                                      <span className="font-semibold text-[11px] uppercase tracking-wider text-slate-400">Responsible Authority</span>
+                                  {issue.assignedDepartment && (
+                                    <div className="flex justify-between items-center text-slate-700 bg-slate-50 px-2 py-2 rounded mt-2 border border-slate-100 shadow-sm">
+                                      <div className="flex flex-col">
+                                        <span className="font-semibold text-[10px] uppercase tracking-widest text-slate-400">Responsible Official</span>
+                                        <span className="text-xs font-black text-slate-800">
+                                          {issue.departmentAdminAssignedBy?.fullName || "Department Admin"}
+                                        </span>
+                                      </div>
                                       <div className="text-right">
-                                        <span className="font-semibold block">{getAuthorityLabel(issue.assignedDepartment.name)}</span>
-                                        <span className="text-[10px] text-slate-400">Waiting for Worker Assignment</span>
+                                        <Badge variant="outline" className="text-[9px] bg-white border-slate-200">
+                                          {getAuthorityLabel(issue.assignedDepartment.name)}
+                                        </Badge>
                                       </div>
                                     </div>
                                   )}
 
                                   {issue.workerAssignedToFix && (
                                     <div
-                                      className="flex justify-between items-center text-blue-700 bg-blue-50 px-2 py-2 rounded mt-2 cursor-pointer hover:bg-blue-100 transition-colors"
+                                      className="flex justify-between items-center text-blue-700 bg-blue-50 px-2 py-2 rounded mt-2 cursor-pointer hover:bg-blue-100 transition-colors border border-blue-100"
                                       onClick={() => handleViewStats(issue._id)}
                                     >
                                       <div className="flex flex-col">
-                                        <span className="font-semibold text-[11px] uppercase tracking-wider text-blue-400">Assigned By</span>
-                                        <span className="text-[10px] font-bold">{issue.departmentAdminAssignedBy?.fullName || "Department Admin"}</span>
+                                        <span className="font-semibold text-[10px] uppercase tracking-widest text-blue-400">Field Technician</span>
+                                        <span className="text-xs font-bold text-blue-800">{issue.workerAssignedToFix.fullName}</span>
                                       </div>
                                       <div className="text-right">
-                                        <span className="font-bold block">{issue.workerAssignedToFix.fullName}</span>
-                                        <span className="text-[10px] text-blue-400 underline mt-0.5 inline-block">View Performance Stats</span>
+                                        <span className="text-[9px] text-blue-400 underline font-bold tracking-tight">VIEW ANALYTICS</span>
                                       </div>
                                     </div>
                                   )}

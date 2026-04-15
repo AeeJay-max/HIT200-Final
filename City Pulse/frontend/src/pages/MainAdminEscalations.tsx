@@ -81,6 +81,11 @@ const MainAdminEscalations = () => {
         }
     };
 
+    const isOverdue = (issue: any) => {
+        if (!issue.deadlineTimestamp) return true; // Treat as overdue if no deadline set
+        return new Date() > new Date(issue.deadlineTimestamp);
+    };
+
     return (
         <div className="min-h-screen bg-background text-slate-600">
             <HeaderAfterAuth />
@@ -131,48 +136,60 @@ const MainAdminEscalations = () => {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {issues.map((issue) => (
-                                        <TableRow key={issue._id} className="hover:bg-red-50/30 transition-colors">
-                                            <TableCell>
-                                                <div className="font-bold text-slate-800">{issue.title}</div>
-                                                <div className="text-xs text-muted-foreground">{issue.location?.address}</div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100">
-                                                    {getAuthorityLabel(issue.assignedDepartment?.name || "Unassigned")}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant="destructive" className="animate-pulse">
-                                                    Level {issue.escalationLevel}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                <select
-                                                    className="w-full p-2 border rounded-md bg-white text-sm"
-                                                    value={selectedAdmin[issue._id] || ""}
-                                                    onChange={(e) => setSelectedAdmin({ ...selectedAdmin, [issue._id]: e.target.value })}
-                                                >
-                                                    <option value="">Select Dept Admin</option>
-                                                    {admins.map(admin => (
-                                                        <option key={admin._id} value={admin._id}>
-                                                            {admin.fullName} ({getAuthorityLabel(admin.department)})
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <Button
-                                                    size="sm"
-                                                    className="bg-red-600 hover:bg-red-700"
-                                                    onClick={() => handleAssign(issue._id)}
-                                                >
-                                                    <UserPlus className="h-4 w-4 mr-2" />
-                                                    Take Control
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
+                                    {issues.map((issue) => {
+                                        const overdue = isOverdue(issue);
+                                        const deptAdmins = admins.filter(a => a.department === issue.assignedDepartment?.name);
+
+                                        return (
+                                            <TableRow key={issue._id} className={`${overdue ? 'bg-red-50 hover:bg-red-100/50 outline outline-1 outline-red-200' : 'opacity-40 grayscale pointer-events-none'} transition-all duration-300`}>
+                                                <TableCell>
+                                                    <div className="font-bold text-slate-800">{issue.title}</div>
+                                                    <div className="text-xs text-muted-foreground">{issue.location?.address}</div>
+                                                    {issue.deadlineTimestamp && (
+                                                        <div className={`text-[10px] font-bold mt-1 ${overdue ? 'text-red-600 animate-pulse' : 'text-slate-400'}`}>
+                                                            Deadline: {new Date(issue.deadlineTimestamp).toLocaleString()}
+                                                        </div>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100">
+                                                        {getAuthorityLabel(issue.assignedDepartment?.name || "Unassigned")}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant="destructive" className={overdue ? "animate-bounce" : "opacity-50"}>
+                                                        Level {issue.escalationLevel}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <select
+                                                        className="w-full p-2 border rounded-md bg-white text-sm disabled:bg-gray-50"
+                                                        value={selectedAdmin[issue._id] || ""}
+                                                        onChange={(e) => setSelectedAdmin({ ...selectedAdmin, [issue._id]: e.target.value })}
+                                                        disabled={!overdue}
+                                                    >
+                                                        <option value="">{deptAdmins.length > 0 ? "Select Dept Admin" : "No Admins Found"}</option>
+                                                        {deptAdmins.map(admin => (
+                                                            <option key={admin._id} value={admin._id}>
+                                                                {admin.fullName}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button
+                                                        size="sm"
+                                                        className={`${overdue ? 'bg-red-600 hover:bg-red-700 shadow-lg shadow-red-200' : 'bg-slate-300'} transition-all`}
+                                                        onClick={() => handleAssign(issue._id)}
+                                                        disabled={!overdue || !selectedAdmin[issue._id]}
+                                                    >
+                                                        <UserPlus className="h-4 w-4 mr-2" />
+                                                        Take Control
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
                                 </TableBody>
                             </Table>
                         )}

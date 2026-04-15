@@ -10,7 +10,7 @@ const IssueStatusHistorySchema = new mongoose_1.Schema({
     },
     status: {
         type: String,
-        enum: ["Reported", "In Progress", "Resolved", "Rejected", "Pending", "Escalated", "Worker Assigned", "Resolved (Unverified)", "Closed", "SUBMITTED", "ASSIGNED_TO_WORKER"],
+        enum: ["Reported", "In Progress", "Resolved", "Rejected", "Pending", "Escalated", "Worker Assigned", "Resolved (Unverified)", "Closed", "SUBMITTED", "ASSIGNED_TO_WORKER", "AWAITING_DEPARTMENT_ADMIN_CONFIRMATION"],
         required: true,
     },
     handledBy: {

@@ -41,8 +41,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getIssueHistory = exports.getAssignmentStats = exports.reassignWorker = exports.rejectAssignment = exports.acceptAssignment = exports.getServiceOutages = exports.getPublicSchedule = exports.getVotes = exports.getIssueTrackingStatus = exports.assignDepartmentAdmin = exports.assignWorker = exports.getPublicAnalytics = exports.updateDumpingStage = exports.voteIssue = exports.upvoteIssue = exports.getIssues = exports.createIssue = void 0;
+const mongoose_1 = __importDefault(require("mongoose"));
 const issue_model_1 = require("../models/issue.model");
 const multimedia_model_1 = require("../models/multimedia.model");
 const department_model_1 = require("../models/department.model");
@@ -107,6 +111,10 @@ const createIssue = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             title,
             description,
             location: parsedLocation,
+            geoJSON: {
+                type: "Point",
+                coordinates: [parsedLocation.longitude, parsedLocation.latitude]
+            },
             status: "SUBMITTED",
             workflowStage: "SUBMITTED",
             assignedDepartment: deptId,
@@ -643,13 +651,13 @@ const getIssueHistory = (req, res) => __awaiter(void 0, void 0, void 0, function
                     }
                     else {
                         // Fallback if department name doesn't match any ID
-                        matchQuery.assignedDepartment = new mongoose.Types.ObjectId();
+                        matchQuery.assignedDepartment = new mongoose_1.default.Types.ObjectId();
                     }
                 }
                 else {
                     const deptId = req.query.departmentId;
                     if (deptId) {
-                        if (mongoose.Types.ObjectId.isValid(deptId)) {
+                        if (mongoose_1.default.Types.ObjectId.isValid(deptId)) {
                             matchQuery.assignedDepartment = deptId;
                         }
                         else {
@@ -664,7 +672,7 @@ const getIssueHistory = (req, res) => __awaiter(void 0, void 0, void 0, function
         else if (citizenId) {
             const deptId = req.query.departmentId;
             if (deptId) {
-                if (mongoose.Types.ObjectId.isValid(deptId)) {
+                if (mongoose_1.default.Types.ObjectId.isValid(deptId)) {
                     matchQuery.assignedDepartment = deptId;
                 }
                 else {

@@ -312,7 +312,7 @@ export const getRadiusHotspots = async (req: AuthRequest, res: Response): Promis
     const radiusInRadians = radiusKm / 6378.1; // Earth's radius in km
 
     let matchStage: any = {
-      location: {
+      geoJSON: {
         $geoWithin: {
           $centerSphere: [[lng, lat], radiusInRadians] // MongoDB uses [lng, lat]
         }

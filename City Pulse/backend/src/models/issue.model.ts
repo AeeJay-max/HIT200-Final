@@ -27,6 +27,8 @@ const IssueSchema = new Schema<IIssue & Document & any>(
         "Streetlight Failures",
         "Traffic Light Failures",
         "Illegal Dumping Sites",
+        "Water Supply Problems",
+        "Electricity Supply Problems",
       ],
       required: true,
     },
@@ -55,6 +57,10 @@ const IssueSchema = new Schema<IIssue & Document & any>(
     location: {
       type: locationSchema,
       required: true,
+    },
+    geoJSON: {
+      type: { type: String, enum: ["Point"], default: "Point" },
+      coordinates: { type: [Number] } // [lng, lat] - Populated by pre-save hook
     },
     media: [{
       type: Schema.Types.ObjectId,
@@ -123,7 +129,7 @@ const IssueSchema = new Schema<IIssue & Document & any>(
     overdueStatus: { type: Boolean, default: false },
     workflowStage: {
       type: String,
-      enum: ["SUBMITTED", "ROUTED_TO_DEPARTMENT", "ASSIGNED_TO_WORKER", "WORKER_ACCEPTED", "IN_PROGRESS", "AWAITING_VERIFICATION", "COMPLETED", "AWAITING_DEPARTMENT_ADMIN_CONFIRMATION"],
+      enum: ["SUBMITTED", "ROUTED_TO_DEPARTMENT", "ASSIGNED_TO_WORKER", "WORKER_ACCEPTED", "IN_PROGRESS", "AWAITING_VERIFICATION", "COMPLETED", "RESOLVED", "AWAITING_DEPARTMENT_ADMIN_CONFIRMATION"],
       default: "SUBMITTED",
     },
     isDeleted: { type: Boolean, default: false },
@@ -144,10 +150,14 @@ IssueSchema.pre("save", function (this: IssueDocument, next) {
     (this.dangerMetrics as any).isLifeThreatening = score >= 60;
 
     // PART 13: Maintenance vs Emergency Queue
-    (this as any).queueType = score >= 60 ? "emergency" : "maintenance";
     if (score < 60) {
-      this.status = "Pending"; // Maintenance queue triage
+      // Only force Pending if not already assigned/in-progress
+      const initialStages: string[] = ["SUBMITTED", "Reported"];
+      if (this.status && initialStages.includes(this.status as string)) {
+        this.status = "Pending"; // Maintenance queue triage
+      }
     }
+    (this as any).queueType = score >= 60 ? "emergency" : "maintenance";
   }
 
   // PART 12: Emergency Infrastructure Escalation
@@ -179,7 +189,18 @@ IssueSchema.pre("save", function (this: IssueDocument, next) {
   next();
 });
 
-IssueSchema.index({ location: "2dsphere" });
+IssueSchema.pre("validate", function (this: IssueDocument, next) {
+  // Sync geoJSON coordinates with location fields
+  if (this.location && typeof this.location.longitude === "number" && typeof this.location.latitude === "number") {
+    this.geoJSON = {
+      type: "Point",
+      coordinates: [this.location.longitude, this.location.latitude]
+    };
+  }
+  next();
+});
+
+IssueSchema.index({ geoJSON: "2dsphere" });
 IssueSchema.index({ deadlineTimestamp: 1 });
 IssueSchema.index({ assignedDepartment: 1 });
 IssueSchema.index({ severity: 1 });

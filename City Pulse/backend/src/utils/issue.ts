@@ -41,6 +41,8 @@ export interface IIssue {
   workerAssignmentTimestamp?: Date;
   deadlineTimestamp?: Date;
   resolutionTimestamp?: Date;
+  delayDuration?: number;
+  violationStage?: string;
   queueType?: "emergency" | "maintenance" | "general";
   priorityScore?: number;
   escalationLevel?: number;
@@ -56,4 +58,8 @@ export interface IIssue {
   duplicateReferenceIssueId?: Types.ObjectId;
   overdueStatus?: boolean;
   isDeleted?: boolean;
+  geoJSON?: {
+    type: "Point";
+    coordinates: number[];
+  };
 }

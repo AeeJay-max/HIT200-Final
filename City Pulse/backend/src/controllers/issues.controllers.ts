@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
 import { IssueModel } from "../models/issue.model";
 import { MultimediaModel } from "../models/multimedia.model";
 import { DepartmentModel } from "../models/department.model";
@@ -79,6 +80,10 @@ export const createIssue = async (
       title,
       description,
       location: parsedLocation,
+      geoJSON: {
+        type: "Point",
+        coordinates: [parsedLocation.longitude, parsedLocation.latitude]
+      },
       status: "SUBMITTED",
       workflowStage: "SUBMITTED",
       assignedDepartment: deptId,

@@ -78,10 +78,16 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
                 newSocket.emit("join_room", `citizen:${user.id}`);
             } else if (user.role === "admin" || user.role === "MAIN_ADMIN" || user.role === "DEPARTMENT_ADMIN") {
                 newSocket.emit("join_room", "admin");
-                if (user.department) newSocket.emit("join_room", `department:${user.department}`);
+                if (user.department) {
+                    const deptName = typeof user.department === "object" ? (user.department as any).name : user.department;
+                    newSocket.emit("join_room", `department:${deptName}`);
+                }
             } else if (user.role === "worker" || user.role === "DEPARTMENT_WORKER") {
                 newSocket.emit("join_room", `worker:${user.id}`);
-                if (user.department) newSocket.emit("join_room", `department:${user.department}`);
+                if (user.department) {
+                    const deptName = typeof user.department === "object" ? (user.department as any).name : user.department;
+                    newSocket.emit("join_room", `department:${deptName}`);
+                }
             }
         });
 

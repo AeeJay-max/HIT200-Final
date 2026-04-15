@@ -17,9 +17,9 @@ import AssignWorkerPage from "./pages/AssignWorkerPage";
 import TransparencyDashboard from "./pages/TransparencyDashboard";
 import Notifications from "./pages/Notifications";
 import HistoryPage from "./pages/HistoryPage";
-import WorkerCompleteIssue from "./pages/WorkerCompleteIssue.tsx";
-import AdminReviewIssue from "./pages/AdminReviewIssue.tsx";
-import MainAdminEscalations from "./pages/MainAdminEscalations.tsx";
+import WorkerCompleteIssue from "./pages/WorkerCompleteIssue";
+import AdminReviewIssue from "./pages/AdminReviewIssue";
+import MainAdminEscalations from "./pages/MainAdminEscalations";
 
 const pageTransition = {
   initial: { opacity: 0, y: 40 },

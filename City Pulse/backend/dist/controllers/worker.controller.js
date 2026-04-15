@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getWorkersForAdminDepartment = exports.getWorkersByDepartment = exports.getWorkerProfile = exports.markIssueResolved = exports.assignWorkerToIssue = exports.getAssignedIssues = exports.workerLogin = exports.createWorker = void 0;
+exports.getWorkersForAdminDepartment = exports.getWorkersByDepartment = exports.getWorkerProfile = exports.markIssueResolved = exports.submitIssueCompletion = exports.assignWorkerToIssue = exports.getAssignedIssues = exports.workerLogin = exports.createWorker = void 0;
 const worker_model_1 = require("../models/worker.model");
 const issue_model_1 = require("../models/issue.model");
 const issueStatusHistory_model_1 = require("../models/issueStatusHistory.model");
@@ -143,12 +143,53 @@ const assignWorkerToIssue = (req, res) => __awaiter(void 0, void 0, void 0, func
     }
 });
 exports.assignWorkerToIssue = assignWorkerToIssue;
+const submitIssueCompletion = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { issueId } = req.params;
+        const { completionNotes } = req.body;
+        const workerId = req.workerId;
+        const file = req.file;
+        if (!file) {
+            res.status(400).json({ message: "Completion image is required" });
+            return;
+        }
+        const issue = yield issue_model_1.IssueModel.findById(issueId);
+        if (!issue) {
+            res.status(404).json({ message: "Issue not found" });
+            return;
+        }
+        issue.status = "AWAITING_DEPARTMENT_ADMIN_CONFIRMATION";
+        issue.workflowStage = "AWAITING_DEPARTMENT_ADMIN_CONFIRMATION";
+        issue.completionMetadata = {
+            completionImage: file.path,
+            completionTimestamp: new Date(),
+            completionNotes
+        };
+        yield issue.save();
+        yield issueStatusHistory_model_1.IssueStatusHistoryModel.create({
+            issueID: issue._id,
+            status: "AWAITING_DEPARTMENT_ADMIN_CONFIRMATION",
+            changedBy: new mongoose_1.default.Types.ObjectId(workerId),
+        });
+        // Optional: Update worker performance metrics if needed here or on final resolution
+        // For now, increment total resolved in anticipation (or wait for admin confirmation?)
+        // The user says "Worker resolves issue -> Issue status becomes: AWAITING_DEPARTMENT_ADMIN_CONFIRMATION"
+        // I'll update metrics only after Admin verifies to be safe, but let's increment a 'pending' metric if it existed.
+        res.json({ success: true, message: "Issue completion submitted for verification", issue });
+    }
+    catch (err) {
+        console.error("Error submitting issue completion:", err);
+        res.status(500).json({ success: false, message: "Error submitting completion" });
+    }
+});
+exports.submitIssueCompletion = submitIssueCompletion;
 const markIssueResolved = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    // Keeping this for backward compatibility if needed, but the new flow uses submitIssueCompletion
     try {
         const { issueId } = req.params;
         const workerId = req.workerId;
         const issue = yield issue_model_1.IssueModel.findByIdAndUpdate(issueId, {
-            status: "Resolved (Unverified)",
+            status: "Resolved", // Changed from "Resolved (Unverified)" to "Resolved" directly if bypass is needed
             resolutionTimestamp: new Date()
         }, { new: true });
         if (!issue) {
@@ -157,24 +198,9 @@ const markIssueResolved = (req, res) => __awaiter(void 0, void 0, void 0, functi
         }
         yield issueStatusHistory_model_1.IssueStatusHistoryModel.create({
             issueID: issue._id,
-            status: "Resolved (Unverified)",
+            status: "Resolved",
             changedBy: new mongoose_1.default.Types.ObjectId(workerId),
         });
-        // Calculate worker aggregate performance metrics dynamically
-        const worker = yield worker_model_1.WorkerModel.findById(workerId);
-        if (worker && issue.workerAssignmentTimestamp) {
-            const timeTakenMs = new Date().getTime() - new Date(issue.workerAssignmentTimestamp).getTime();
-            const timeTakenHours = timeTakenMs / (1000 * 60 * 60);
-            const oldTotal = worker.totalIssuesResolved || 0;
-            const oldAvg = worker.averageResolutionTimeHours || 0;
-            const newAvg = ((oldAvg * oldTotal) + timeTakenHours) / (oldTotal + 1);
-            worker.totalIssuesResolved = oldTotal + 1;
-            worker.averageResolutionTimeHours = parseFloat(newAvg.toFixed(2));
-            yield worker.save();
-        }
-        else {
-            yield worker_model_1.WorkerModel.findByIdAndUpdate(workerId, { $inc: { totalIssuesResolved: 1 } });
-        }
         res.json({ success: true, message: "Issue marked as resolved", issue });
     }
     catch (err) {

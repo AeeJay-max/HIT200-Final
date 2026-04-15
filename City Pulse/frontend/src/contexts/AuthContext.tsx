@@ -81,7 +81,8 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
         const normalizedUser = {
           ...result,
           id: result._id || result.id,
-          role: result.role || storedRole
+          role: result.role || storedRole,
+          department: typeof result.department === "object" ? result.department.name : result.department
         };
         setUser(normalizedUser);
         localStorage.setItem("auth_user", JSON.stringify(normalizedUser));
@@ -191,7 +192,7 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
         fullName: result.user.fullName || "Guest",
         role: result.user.role || (role === "worker" ? "DEPARTMENT_WORKER" : role),
         phonenumber: result.user.phonenumber || "",
-        department: result.user.department || "",
+        department: typeof result.user.department === "object" ? result.user.department.name : (result.user.department || ""),
         adminAccessCode: result.user.adminAccessCode || "",
       };
 

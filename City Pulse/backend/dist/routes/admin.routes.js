@@ -28,4 +28,7 @@ router.post("/admin/schedules", auth_middleware_1.authMiddleware, (0, auth_middl
 router.get("/admin/schedules", auth_middleware_1.authMiddleware, scheduleAnnouncement_controller_1.getSchedules);
 router.get("/admin/analytics", auth_middleware_1.authMiddleware, (0, auth_middleware_2.requireRole)(["admin"]), admin_controller_1.getAnalytics);
 router.post("/admin/analytics/radius", auth_middleware_1.authMiddleware, (0, auth_middleware_2.requireRole)(["admin"]), admin_controller_1.getRadiusHotspots);
+router.put("/admin/issue/:id/verify", auth_middleware_1.authMiddleware, (0, auth_middleware_2.requireRole)(["admin"]), admin_controller_1.verifyIssueCompletion);
+router.post("/admin/issue/:id/escalation-assign", auth_middleware_1.authMiddleware, (0, auth_middleware_2.requireRole)(["MAIN_ADMIN"]), admin_controller_1.manualEscalationAssign);
+router.get("/admins", auth_middleware_1.authMiddleware, (0, auth_middleware_2.requireRole)(["MAIN_ADMIN"]), admin_controller_1.getAllAdmins);
 exports.default = router;

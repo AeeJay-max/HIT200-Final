@@ -47,7 +47,10 @@ const WorkerDashboard = () => {
             });
             const data = await res.json();
             if (data.success) {
-                setIssues(data.issues.filter((i: any) => i.status === "Worker Assigned" || i.status === "ASSIGNED_TO_WORKER" || i.status === "WORKER_ACCEPTED" || i.status === "In Progress" || i.status === "IN_PROGRESS"));
+                const activeStatuses = ["WORKER ASSIGNED", "ASSIGNED_TO_WORKER", "WORKER_ACCEPTED", "IN PROGRESS", "IN_PROGRESS"];
+                setIssues(data.issues.filter((i: any) =>
+                    activeStatuses.includes(i.status?.toUpperCase())
+                ));
             }
         } catch (e) {
             console.error(e);

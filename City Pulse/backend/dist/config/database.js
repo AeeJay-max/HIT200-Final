@@ -22,7 +22,9 @@ const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
     }
     console.log("Attempting to connect to MongoDB...");
     try {
-        yield mongoose_1.default.connect(url);
+        yield mongoose_1.default.connect(url, {
+            serverSelectionTimeoutMS: 5000 // Timeout after 5s instead of default 30s
+        });
         console.log("Connected to DB successfully!");
     }
     catch (err) {

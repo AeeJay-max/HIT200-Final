@@ -1,12 +1,11 @@
 // Maps an Admin's department to the Issue categories they have jurisdiction over.
 
 export const DepartmentIssueMapping: Record<string, string[]> = {
-    "Roads Department": ["Life-Threatening Potholes"],
-    "Water Department": ["Burst Water Pipes"],
-    "Sanitation Department": ["Sewer Failures"],
-    "Electrical Department": ["Streetlight Failures"],
-    "Traffic Control Department": ["Traffic Light Failures"],
-    "Environmental Department": ["Illegal Dumping Sites"],
+    "City Council": ["Streetlight Failures", "Burst Water Pipes", "Sewer Failures"],
+    "ZINWA": ["Water Supply Problems"],
+    "ZESA": ["Electricity Supply Problems"],
+    "EMA": ["Illegal Dumping Sites"],
+    "Traffic Safety Council of Zimbabwe": ["Life-Threatening Potholes", "Traffic Light Failures"],
 };
 
 export const SlaMappingHrs: Record<string, number> = {
@@ -15,7 +14,9 @@ export const SlaMappingHrs: Record<string, number> = {
     "Sewer Failures": 18,
     "Streetlight Failures": 72,
     "Traffic Light Failures": 12,
-    "Illegal Dumping Sites": 48
+    "Illegal Dumping Sites": 48,
+    "Water Supply Problems": 24,
+    "Electricity Supply Problems": 24
 };
 
 // Gets the required Department string based on issue type
