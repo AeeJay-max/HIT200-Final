@@ -14,12 +14,14 @@ import MainAdminSignUp from "./pages/MainAdminSignUp";
 import ProtectedRoute from "./components/ProtectedRoute";
 import WorkerDashboard from "./pages/WorkerDashboard";
 import AssignWorkerPage from "./pages/AssignWorkerPage";
+import AssignIssuePage from "./pages/AssignIssuePage";
 import TransparencyDashboard from "./pages/TransparencyDashboard";
 import Notifications from "./pages/Notifications";
 import HistoryPage from "./pages/HistoryPage";
 import WorkerCompleteIssue from "./pages/WorkerCompleteIssue";
 import AdminReviewIssue from "./pages/AdminReviewIssue";
 import MainAdminEscalations from "./pages/MainAdminEscalations";
+import MainAdminDashboard from "./pages/MainAdminDashboard"; // Dashboard Control Center
 
 const pageTransition = {
   initial: { opacity: 0, y: 40 },
@@ -149,11 +151,21 @@ export default function AnimatedRoutes() {
           }
         />
         <Route
-          path="/admin/assign-worker/:id"
+          path="/assign-worker/:id"
           element={
             <ProtectedRoute requiredRole="admin">
               <MotionWrapper>
                 <AssignWorkerPage />
+              </MotionWrapper>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/assign-issue/:id"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <MotionWrapper>
+                <AssignIssuePage />
               </MotionWrapper>
             </ProtectedRoute>
           }
@@ -222,6 +234,16 @@ export default function AnimatedRoutes() {
             <ProtectedRoute requiredRole="admin">
               <MotionWrapper>
                 <MainAdminEscalations />
+              </MotionWrapper>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/main-admin-dashboard"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <MotionWrapper>
+                <MainAdminDashboard />
               </MotionWrapper>
             </ProtectedRoute>
           }

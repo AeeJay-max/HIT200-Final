@@ -75,7 +75,11 @@ const SignIn = () => {
           description: "Welcome back!",
         });
 
-        const path = activeTab === "citizen" ? "/citizen" : activeTab === "admin" ? "/admin" : "/worker";
+        const storedRole = localStorage.getItem("auth_role");
+        const path = activeTab === "citizen" ? "/citizen" :
+          (activeTab === "admin" && storedRole === "MAIN_ADMIN") ? "/main-admin-dashboard" :
+            activeTab === "admin" ? "/admin" : "/worker";
+
         navigate(path, { replace: true });
         hideLoader();
       } else {

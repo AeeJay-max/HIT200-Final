@@ -62,7 +62,7 @@ export default function AnalyticsPanel() {
                                     fill="#8884d8"
                                     label
                                 >
-                                    {data.byStatus?.map((entry: any, index: number) => (
+                                    {data.byStatus?.map((_entry: any, index: number) => (
                                         <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                                     ))}
                                 </Pie>

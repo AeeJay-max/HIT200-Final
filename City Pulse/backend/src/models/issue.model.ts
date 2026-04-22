@@ -103,9 +103,11 @@ const IssueSchema = new Schema<IIssue & Document & any>(
       type: Schema.Types.ObjectId,
       ref: "Admin",
     },
-    assignedDepartment: { type: Schema.Types.ObjectId, ref: "Department" },
+    assignedDepartment: { type: String },
     departmentAdminAssignedBy: { type: Schema.Types.ObjectId, ref: "Admin" },
     workerAssignedToFix: { type: Schema.Types.ObjectId, ref: "Worker" },
+    assignedToUserId: { type: Schema.Types.ObjectId },
+    assignedToRole: { type: String, enum: ["DEPARTMENT_ADMIN", "WORKER"] },
     assignmentAcceptedTimestamp: { type: Date },
     assignmentRejectedTimestamp: { type: Date },
     workerAssignmentTimestamp: { type: Date },
@@ -133,9 +135,15 @@ const IssueSchema = new Schema<IIssue & Document & any>(
       default: "SUBMITTED",
     },
     isDeleted: { type: Boolean, default: false },
+    overrideSource: { type: String },
+    overrideTimestamp: { type: Date },
   },
-  { timestamps: true }
+  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
+
+IssueSchema.virtual("assignmentDeadlinePassed").get(function (this: any) {
+  return this.deadlineTimestamp ? Date.now() > new Date(this.deadlineTimestamp).getTime() : false;
+});
 
 IssueSchema.pre("save", function (this: IssueDocument, next) {
   // PART 2: Pothole Validation & Scoring

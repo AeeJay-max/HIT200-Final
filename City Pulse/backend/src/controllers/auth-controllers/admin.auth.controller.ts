@@ -109,6 +109,21 @@ export const adminSignin = async (
       return;
     }
 
+    // Check if account is active
+    if (existingUser.isActive === false) {
+      // Find the admin who deactivated this account
+      const deactivator = await AdminModel.findById(existingUser.deactivatedBy).select("email fullName");
+      const deactivatorInfo = deactivator
+        ? `${deactivator.fullName} (${deactivator.email})`
+        : "a System Administrator";
+
+      res.status(403).json({
+        message: `Your account has been deactivated. Please contact ${deactivatorInfo} for more information.`,
+        success: false
+      });
+      return;
+    }
+
     // Generate JWT token
     const accessToken = jwt.sign(
       { id: existingUser._id, role: existingUser.role },

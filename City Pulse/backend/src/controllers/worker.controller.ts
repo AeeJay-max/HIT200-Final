@@ -105,7 +105,6 @@ export const getAssignedIssues = async (req: Request, res: Response): Promise<vo
         const issues = await IssueModel.find({
             workerAssignedToFix: worker._id
         }).populate("citizenId", "fullName email")
-            .populate("assignedDepartment", "name")
             .populate("workerAssignedToFix", "fullName");
 
         res.json({ success: true, issues });

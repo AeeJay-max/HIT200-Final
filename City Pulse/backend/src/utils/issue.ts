@@ -33,9 +33,11 @@ export interface IIssue {
   createdAt?: Date;
   updatedAt?: Date;
   handledBy?: Object | string;
-  assignedDepartment?: Types.ObjectId;
+  assignedDepartment?: string;
   departmentAdminAssignedBy?: Types.ObjectId;
   workerAssignedToFix?: Types.ObjectId;
+  assignedToUserId?: Types.ObjectId;
+  assignedToRole?: "DEPARTMENT_ADMIN" | "WORKER";
   assignmentAcceptedTimestamp?: Date;
   assignmentRejectedTimestamp?: Date;
   workerAssignmentTimestamp?: Date;
@@ -58,6 +60,8 @@ export interface IIssue {
   duplicateReferenceIssueId?: Types.ObjectId;
   overdueStatus?: boolean;
   isDeleted?: boolean;
+  overrideSource?: string;
+  overrideTimestamp?: Date;
   geoJSON?: {
     type: "Point";
     coordinates: number[];

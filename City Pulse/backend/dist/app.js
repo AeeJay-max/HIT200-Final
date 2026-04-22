@@ -14,6 +14,7 @@ const worker_routes_1 = __importDefault(require("./routes/worker.routes"));
 const analytics_routes_1 = __importDefault(require("./routes/analytics.routes"));
 const notification_routes_1 = __importDefault(require("./routes/notification.routes"));
 const audit_routes_1 = __importDefault(require("./routes/audit.routes"));
+const dashboard_routes_1 = __importDefault(require("./routes/dashboard.routes"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const auth_middleware_1 = require("./middlerware/auth.middleware");
 const requireRole_1 = require("./middlerware/requireRole");
@@ -74,6 +75,7 @@ app.use("/api/v1", worker_routes_1.default);
 app.use("/api/v1/notifications", notification_routes_1.default);
 app.use("/api/v1/analytics", analytics_routes_1.default);
 app.use("/api/v1/audit", audit_routes_1.default);
+app.use("/api/v1/dashboard", dashboard_routes_1.default);
 // PART 15: System Health Monitoring
 app.get("/api/v1/health", (req, res) => {
     res.json({

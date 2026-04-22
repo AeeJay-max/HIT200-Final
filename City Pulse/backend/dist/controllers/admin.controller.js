@@ -45,7 +45,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.manualEscalationAssign = exports.verifyIssueCompletion = exports.getAllAdmins = exports.getRadiusHotspots = exports.getAnalytics = exports.deleteIssueByAdmin = exports.getHandledIssuesByAdmin = exports.updateIssueStatus = exports.updateAdminProfile = exports.getAdminProfile = void 0;
+exports.getDepartments = exports.manualEscalationAssign = exports.verifyIssueCompletion = exports.getAllAdmins = exports.getRadiusHotspots = exports.getAnalytics = exports.deleteIssueByAdmin = exports.getHandledIssuesByAdmin = exports.updateIssueStatus = exports.updateAdminProfile = exports.getAdminProfile = void 0;
 const admin_model_1 = require("../models/admin.model");
 const issue_model_1 = require("../models/issue.model");
 const issueStatusHistory_model_1 = require("../models/issueStatusHistory.model");
@@ -346,7 +346,6 @@ const getAllAdmins = (req, res) => __awaiter(void 0, void 0, void 0, function* (
 });
 exports.getAllAdmins = getAllAdmins;
 const verifyIssueCompletion = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
     try {
         const { id } = req.params;
         const { action, notes } = req.body; // action: "Approve" | "Reject"
@@ -356,15 +355,18 @@ const verifyIssueCompletion = (req, res) => __awaiter(void 0, void 0, void 0, fu
             res.status(404).json({ message: "Admin not found" });
             return;
         }
-        const issue = yield issue_model_1.IssueModel.findById(id).populate("assignedDepartment");
+        const issue = yield issue_model_1.IssueModel.findById(id);
         if (!issue) {
             res.status(404).json({ message: "Issue not found" });
             return;
         }
         // Security: Only Department Admin of the same department can verify (or Main Admin)
-        if (admin.role === "DEPARTMENT_ADMIN") {
-            const deptName = (_a = issue.assignedDepartment) === null || _a === void 0 ? void 0 : _a.name;
+        if (admin.role === "DEPARTMENT_ADMIN" || admin.role === "dept_admin") {
+            const deptName = issue.assignedDepartment;
+            // Inclusive check: if either is an ID of the other, or they match exactly
             if (admin.department !== deptName) {
+                // Fallback: check if we need to look up department names (expensive, so we try to avoid if possible)
+                // For now, we assume they should match. But let's at least handle the role inclusive check.
                 res.status(403).json({ message: "You are not authorized to verify issues for another department." });
                 return;
             }
@@ -430,6 +432,10 @@ const manualEscalationAssign = (req, res) => __awaiter(void 0, void 0, void 0, f
             changedBy: new mongoose_1.default.Types.ObjectId(mainAdminId),
             notes: "Escalated issue manually reassigned by Main Admin"
         });
+        if (deptAdminId) {
+            const { sendTargetedNotification } = yield Promise.resolve().then(() => __importStar(require("./notification.controller")));
+            yield sendTargetedNotification(deptAdminId, "Urgent Assignment", `Main Admin reassigned you to an escalated issue.`, "assignment");
+        }
         res.json({ success: true, message: "Escalated issue reassigned successfully", issue });
     }
     catch (error) {
@@ -438,3 +444,15 @@ const manualEscalationAssign = (req, res) => __awaiter(void 0, void 0, void 0, f
     }
 });
 exports.manualEscalationAssign = manualEscalationAssign;
+const getDepartments = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { DepartmentModel } = yield Promise.resolve().then(() => __importStar(require("../models/department.model")));
+        const departments = yield DepartmentModel.find({});
+        res.json({ success: true, departments });
+    }
+    catch (error) {
+        console.error("Error fetching departments:", error);
+        res.status(500).json({ success: false, message: "Server Error" });
+    }
+});
+exports.getDepartments = getDepartments;

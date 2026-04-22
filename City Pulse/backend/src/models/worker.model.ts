@@ -5,10 +5,11 @@ export interface IWorker extends Document {
   email: string;
   password?: string;
   phonenumber: string;
-  department: Types.ObjectId;
+  department: string;
   role: "DEPARTMENT_WORKER";
   createdBy: Types.ObjectId; // Department Admin who created this worker
   isActive: boolean;
+  deactivatedBy?: Types.ObjectId;
   performanceScore: number;
   totalIssuesResolved: number;
   totalOverdueIssues: number;
@@ -22,10 +23,11 @@ const WorkerSchema = new Schema<IWorker>(
     email: { type: String, required: true, lowercase: true, unique: true },
     password: { type: String, required: true },
     phonenumber: { type: String, required: true },
-    department: { type: Schema.Types.ObjectId, ref: "Department", required: true },
+    department: { type: String, required: true },
     role: { type: String, enum: ["DEPARTMENT_WORKER"], default: "DEPARTMENT_WORKER" },
     createdBy: { type: Schema.Types.ObjectId, ref: "Admin", required: true },
     isActive: { type: Boolean, default: true },
+    deactivatedBy: { type: Schema.Types.ObjectId, ref: "Admin" },
     pushSubscription: { type: Schema.Types.Mixed }, // Store Web Push Subscription object
 
     // Productivity analytics fields

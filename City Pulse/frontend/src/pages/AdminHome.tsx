@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -13,7 +12,6 @@ import {
 } from "../components/ui/table";
 import { Badge } from "../components/ui/badge";
 import {
-  ArrowDown,
   ArrowUp,
   ChevronsUpDown,
   Edit,
@@ -57,18 +55,36 @@ interface Issues {
   image: string;
   status: string;
   upvotes: string[];
+  assignedDepartment?: string;
 }
 
+import { useNavigate } from "react-router-dom";
+
 const AdminHome = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const role = localStorage.getItem("auth_role");
+    if (role === "MAIN_ADMIN") {
+      navigate("/main-admin-dashboard", { replace: true });
+    }
+  }, [navigate]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortColumn, setSortColumn] = useState<string | null>(null);
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [issues, setIssues] = useState<Issues[]>([]);
   const [workerForm, setWorkerForm] = useState({ fullName: "", email: "", password: "", phonenumber: "" });
   const [health, setHealth] = useState<any>(null);
   const { hideLoader } = useLoader();
+
+  // Assignment Modal States
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [selectedAssignIssue, setSelectedAssignIssue] = useState<Issues | null>(null);
+  const [assignablePersonnel, setAssignablePersonnel] = useState<{ departmentAdmins: any[], workers: any[] } | null>(null);
+  const [loadingPersonnel, setLoadingPersonnel] = useState(false);
+
+  // 24 hours deadline
+  const ASSIGNMENT_DEADLINE_MS = 24 * 60 * 60 * 1000;
 
   useEffect(() => {
     const fetchIssues = async () => {
@@ -110,6 +126,43 @@ const AdminHome = () => {
     };
     fetchHealth();
   }, [hideLoader]);
+
+  const handleOpenAssignModal = async (issue: Issues) => {
+    setSelectedAssignIssue(issue);
+    setIsAssignModalOpen(true);
+    setLoadingPersonnel(true);
+    try {
+      const response = await fetch(`${VITE_BACKEND_URL}/api/v1/issues/assignable-personnel/${issue.assignedDepartment}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` }
+      });
+      const data = await response.json();
+      if (data.success) {
+        setAssignablePersonnel(data.data);
+      }
+    } catch (e) { console.error("Error fetching personnel:", e) }
+    setLoadingPersonnel(false);
+  };
+
+  const handleAssignSubmit = async (assigneeId: string, role: string) => {
+    try {
+      const response = await fetch(`${VITE_BACKEND_URL}/api/v1/issues/${selectedAssignIssue?._id}/override-assignee`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("auth_token")}`
+        },
+        body: JSON.stringify({ assigneeId, role })
+      });
+      if (response.ok) {
+        alert("Assignment successful!");
+        setIsAssignModalOpen(false);
+        window.location.reload();
+      } else {
+        const data = await response.json();
+        alert(data.message || "Assignment failed");
+      }
+    } catch (e) { console.error(e); }
+  };
 
   const handleCreateWorker = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -183,15 +236,6 @@ const AdminHome = () => {
       }
     } catch (error) {
       console.error("Error deleting issue:", error);
-    }
-  };
-
-  const handleSort = (column: string) => {
-    if (sortColumn === column) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSortColumn(column);
-      setSortDirection("asc");
     }
   };
 
@@ -551,11 +595,37 @@ const AdminHome = () => {
                                   </DropdownMenuContent>
                                 </DropdownMenu>
 
-                                <Link to={`/admin/assign-worker/${issue._id}`}>
-                                  <Button variant="outline" size="sm" className="text-blue-600 border-blue-200 hover:bg-blue-50 font-bold h-8 text-[11px]">
-                                    Assign
-                                  </Button>
-                                </Link>
+                                {/* For assign logic */}
+                                {(() => {
+                                  let isMainAdmin = false;
+                                  try {
+                                    isMainAdmin = localStorage.getItem("admin_role") === "MAIN_ADMIN";
+                                  } catch (err) { }
+                                  const isPastDue = Date.now() - new Date(issue.reportedAt).getTime() > ASSIGNMENT_DEADLINE_MS;
+
+                                  if (isMainAdmin) {
+                                    if (!isPastDue) {
+                                      return (
+                                        <Button disabled title="Within Department Grace Period (24h)" variant="outline" size="sm" className="opacity-50 cursor-not-allowed font-bold h-8 text-[11px] grayscale">
+                                          Assign
+                                        </Button>
+                                      );
+                                    }
+                                    return (
+                                      <Button onClick={() => handleOpenAssignModal(issue)} variant="outline" size="sm" className="text-blue-600 border-blue-200 hover:bg-blue-50 font-bold h-8 text-[11px]">
+                                        Assign MAIN
+                                      </Button>
+                                    );
+                                  }
+
+                                  return (
+                                    <Link to={`/admin/assign-worker/${issue._id}`}>
+                                      <Button variant="outline" size="sm" className="text-blue-600 border-blue-200 hover:bg-blue-50 font-bold h-8 text-[11px]">
+                                        Assign
+                                      </Button>
+                                    </Link>
+                                  );
+                                })()}
 
                                 {issue.status === "AWAITING_DEPARTMENT_ADMIN_CONFIRMATION" && (
                                   <Link to={`/admin-review/${issue._id}`}>
@@ -632,6 +702,66 @@ const AdminHome = () => {
           </Tabs>
         </div>
       </div>
+
+      {/* Assignment Modal UI */}
+      {isAssignModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-2xl bg-white shadow-xl max-h-[80vh] flex flex-col">
+            <CardHeader className="border-b bg-slate-50 flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-lg text-slate-800">Assign: {selectedAssignIssue?.title}</CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => setIsAssignModalOpen(false)}>Close</Button>
+            </CardHeader>
+            <CardContent className="overflow-y-auto p-4 space-y-6">
+              {loadingPersonnel ? (
+                <p className="text-center text-slate-500 animate-pulse py-8">Fetching available personnel...</p>
+              ) : (
+                <>
+                  {/* Department Admins */}
+                  <div>
+                    <h3 className="font-bold text-slate-700 border-b pb-2 mb-3">Department Admins</h3>
+                    {assignablePersonnel?.departmentAdmins?.length === 0 ? (
+                      <p className="text-sm text-slate-500 italic">No department admins found for this department yet</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {assignablePersonnel?.departmentAdmins?.map(admin => (
+                          <div key={admin._id} className="flex items-center justify-between p-2 rounded border bg-slate-50">
+                            <div>
+                              <p className="font-semibold text-sm">{admin.fullName}</p>
+                              <p className="text-xs text-slate-500">{admin.email}</p>
+                            </div>
+                            <Button size="sm" onClick={() => handleAssignSubmit(admin._id, "DEPARTMENT_ADMIN")} className="bg-sky-600 hover:bg-sky-700 h-7 text-xs">Assign</Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Department Workers */}
+                  <div>
+                    <h3 className="font-bold text-slate-700 border-b pb-2 mb-3">Department Workers</h3>
+                    {assignablePersonnel?.workers?.length === 0 ? (
+                      <p className="text-sm text-slate-500 italic">No workers found for this department yet.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {assignablePersonnel?.workers?.map(worker => (
+                          <div key={worker._id} className="flex items-center justify-between p-2 rounded border bg-slate-50">
+                            <div>
+                              <p className="font-semibold text-sm">{worker.fullName}</p>
+                              <p className="text-xs text-slate-500">{worker.phonenumber || worker.email}</p>
+                            </div>
+                            <Button size="sm" onClick={() => handleAssignSubmit(worker._id, "WORKER")} className="bg-emerald-600 hover:bg-emerald-700 h-7 text-xs">Assign</Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
     </motion.div>
   );
 };

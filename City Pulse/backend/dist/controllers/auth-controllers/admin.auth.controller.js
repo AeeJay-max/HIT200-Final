@@ -95,6 +95,19 @@ const adminSignin = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             res.status(401).json({ message: "Invalid password" });
             return;
         }
+        // Check if account is active
+        if (existingUser.isActive === false) {
+            // Find the admin who deactivated this account
+            const deactivator = yield admin_model_1.AdminModel.findById(existingUser.deactivatedBy).select("email fullName");
+            const deactivatorInfo = deactivator
+                ? `${deactivator.fullName} (${deactivator.email})`
+                : "a System Administrator";
+            res.status(403).json({
+                message: `Your account has been deactivated. Please contact ${deactivatorInfo} for more information.`,
+                success: false
+            });
+            return;
+        }
         // Generate JWT token
         const accessToken = jsonwebtoken_1.default.sign({ id: existingUser._id, role: existingUser.role }, process.env.JWT_PASSWORD, { expiresIn: "7h" });
         const refreshToken = crypto_1.default.randomBytes(40).toString("hex");

@@ -44,6 +44,8 @@ interface Issues {
   upvotes: string[];
   workflowStage?: string;
   createdAt?: string;
+  deadlineTimestamp?: string;
+  escalationLevel?: number;
 }
 
 const MIN_LOADER_DURATION = 500; // Minimum loader display time (ms)

@@ -19,7 +19,7 @@ export const startTimelineEnforcementCron = () => {
                 status: { $ne: 'Resolved' },
                 overdueStatus: false,
                 deadlineTimestamp: { $lt: now }
-            }).populate('assignedDepartment');
+            });
 
             const mainAdmin = await AdminModel.findOne({ role: 'MAIN_ADMIN' });
 

@@ -9,6 +9,7 @@ import workerRoutes from "./routes/worker.routes";
 import analyticsRoutes from "./routes/analytics.routes";
 import notificationRoutes from "./routes/notification.routes";
 import auditRoutes from "./routes/audit.routes";
+import dashboardRoutes from "./routes/dashboard.routes";
 import mongoose from "mongoose";
 import { authMiddleware } from "./middlerware/auth.middleware";
 import { requireRole } from "./middlerware/requireRole";
@@ -82,6 +83,7 @@ app.use("/api/v1", workerRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
 app.use("/api/v1/analytics", analyticsRoutes);
 app.use("/api/v1/audit", auditRoutes);
+app.use("/api/v1/dashboard", dashboardRoutes);
 
 // PART 15: System Health Monitoring
 app.get("/api/v1/health", (req, res) => {

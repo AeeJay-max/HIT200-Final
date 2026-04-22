@@ -31,4 +31,5 @@ router.post("/admin/analytics/radius", auth_middleware_1.authMiddleware, (0, aut
 router.put("/admin/issue/:id/verify", auth_middleware_1.authMiddleware, (0, auth_middleware_2.requireRole)(["admin"]), admin_controller_1.verifyIssueCompletion);
 router.post("/admin/issue/:id/escalation-assign", auth_middleware_1.authMiddleware, (0, auth_middleware_2.requireRole)(["MAIN_ADMIN"]), admin_controller_1.manualEscalationAssign);
 router.get("/admins", auth_middleware_1.authMiddleware, (0, auth_middleware_2.requireRole)(["MAIN_ADMIN"]), admin_controller_1.getAllAdmins);
+router.get("/departments", auth_middleware_1.authMiddleware, admin_controller_1.getDepartments);
 exports.default = router;

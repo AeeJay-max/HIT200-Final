@@ -103,7 +103,6 @@ const getAssignedIssues = (req, res) => __awaiter(void 0, void 0, void 0, functi
         const issues = yield issue_model_1.IssueModel.find({
             workerAssignedToFix: worker._id
         }).populate("citizenId", "fullName email")
-            .populate("assignedDepartment", "name")
             .populate("workerAssignedToFix", "fullName");
         res.json({ success: true, issues });
     }

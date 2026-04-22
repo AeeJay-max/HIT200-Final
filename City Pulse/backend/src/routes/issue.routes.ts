@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { upload } from "../middlerware/upload.middleware";
-import { createIssue, getIssues, upvoteIssue, updateDumpingStage, getPublicAnalytics, assignWorker, getIssueTrackingStatus, voteIssue, assignDepartmentAdmin, getVotes, getPublicSchedule, getServiceOutages, acceptAssignment, rejectAssignment, reassignWorker, getAssignmentStats, getIssueHistory } from "../controllers/issues.controllers";
+import { createIssue, getIssues, upvoteIssue, updateDumpingStage, getPublicAnalytics, assignWorker, getIssueTrackingStatus, voteIssue, assignDepartmentAdmin, getVotes, getPublicSchedule, getServiceOutages, acceptAssignment, rejectAssignment, reassignWorker, getAssignmentStats, getIssueHistory, reassignDepartment, overrideAssignee, getAssignablePersonnelByDepartment, getIssueById, overrideDepartmentAdminAssignment, overrideWorkerAssignment, getIssueDepartmentStaff } from "../controllers/issues.controllers";
 import { authMiddleware } from "../middlerware/auth.middleware";
 
 const router = Router();
@@ -27,6 +27,7 @@ router.post(
 );
 
 router.get("/all-issues", authMiddleware, getIssues);
+router.get("/issues", authMiddleware, getIssues); // Alias for consistency across dashboard components
 
 // Community Upvote
 router.post("/issues/:id/upvote", authMiddleware, upvoteIssue);
@@ -50,11 +51,18 @@ router.patch("/issues/:id/assign-department-admin", authMiddleware, assignDepart
 router.patch("/issues/:id/accept-assignment", authMiddleware, acceptAssignment);
 router.patch("/issues/:id/reject-assignment", authMiddleware, rejectAssignment);
 router.patch("/issues/:id/reassign-worker", authMiddleware, reassignWorker);
+router.patch("/issues/:id/reassign-department", authMiddleware, reassignDepartment);
+router.patch("/issues/:id/override-assignee", authMiddleware, overrideAssignee);
+router.get("/issues/assignable-personnel/:department", authMiddleware, getAssignablePersonnelByDepartment);
 
 // Tracking API
 router.get("/issues/:id/tracking", getIssueTrackingStatus);
 router.get("/issues/:id/votes", authMiddleware, getVotes);
 router.get("/issues/:id/assignment-stats", authMiddleware, getAssignmentStats);
+router.get("/issues/:id", authMiddleware, getIssueById);
+router.get("/issues/:id/department-staff", authMiddleware, getIssueDepartmentStaff);
+router.patch("/issues/:id/override-department-admin", authMiddleware, overrideDepartmentAdminAssignment);
+router.patch("/issues/:id/override-worker", authMiddleware, overrideWorkerAssignment);
 router.get("/history", authMiddleware, getIssueHistory);
 
 export default router;

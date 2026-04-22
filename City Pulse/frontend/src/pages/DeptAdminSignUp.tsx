@@ -243,9 +243,11 @@ const DeptAdminSignUp = () => {
                       <option value="" disabled>
                         Select a Department
                       </option>
-                      <option value="Roads">Roads</option>
-                      <option value="Water">Water</option>
-                      <option value="Environment">Environment</option>
+                      <option value="City Council">City Council</option>
+                      <option value="ZINWA">ZINWA</option>
+                      <option value="ZESA">ZESA</option>
+                      <option value="EMA">EMA</option>
+                      <option value="Traffic Safety Council of Zimbabwe">Traffic Safety Council of Zimbabwe</option>
                     </select>
                     {adminErrors.department && (
                       <p className="text-red-600 text-sm">

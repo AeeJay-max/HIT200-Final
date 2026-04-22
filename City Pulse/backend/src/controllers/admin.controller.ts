@@ -383,16 +383,19 @@ export const verifyIssueCompletion = async (
       return;
     }
 
-    const issue = await IssueModel.findById(id).populate("assignedDepartment");
+    const issue = await IssueModel.findById(id);
     if (!issue) {
       res.status(404).json({ message: "Issue not found" });
       return;
     }
 
     // Security: Only Department Admin of the same department can verify (or Main Admin)
-    if (admin.role === "DEPARTMENT_ADMIN") {
-      const deptName = (issue.assignedDepartment as any)?.name;
+    if ((admin.role as any) === "DEPARTMENT_ADMIN" || (admin.role as any) === "dept_admin") {
+      const deptName = issue.assignedDepartment;
+      // Inclusive check: if either is an ID of the other, or they match exactly
       if (admin.department !== deptName) {
+        // Fallback: check if we need to look up department names (expensive, so we try to avoid if possible)
+        // For now, we assume they should match. But let's at least handle the role inclusive check.
         res.status(403).json({ message: "You are not authorized to verify issues for another department." });
         return;
       }
@@ -468,9 +471,25 @@ export const manualEscalationAssign = async (
       notes: "Escalated issue manually reassigned by Main Admin"
     });
 
+    if (deptAdminId) {
+      const { sendTargetedNotification } = await import("./notification.controller");
+      await sendTargetedNotification(deptAdminId, "Urgent Assignment", `Main Admin reassigned you to an escalated issue.`, "assignment");
+    }
+
     res.json({ success: true, message: "Escalated issue reassigned successfully", issue });
   } catch (error) {
     console.error("Error in manual escalation assignment:", error);
     res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getDepartments = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { DepartmentModel } = await import("../models/department.model");
+    const departments = await DepartmentModel.find({});
+    res.json({ success: true, departments });
+  } catch (error) {
+    console.error("Error fetching departments:", error);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };

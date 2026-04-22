@@ -13,10 +13,12 @@ const AdminSchema = new Schema(
       type: String,
       required: [true],
     },
-    department: { type: String, required: true },
+    department: { type: String, required: false },
     role: { type: String, enum: ["MAIN_ADMIN", "DEPARTMENT_ADMIN"], default: "DEPARTMENT_ADMIN" },
     adminAccessCode: { type: Number, required: true, unique: true },
     pushSubscription: { type: Schema.Types.Mixed }, // Web Push Subscription object
+    isActive: { type: Boolean, default: true },
+    deactivatedBy: { type: Schema.Types.ObjectId, ref: "Admin" },
   },
   { timestamps: true }
 );

@@ -55,6 +55,21 @@ export const workerLogin = async (req: Request, res: Response): Promise<void> =>
             return;
         }
 
+        // Check if account is active
+        if (worker.isActive === false) {
+            const { AdminModel } = await import("../models/admin.model");
+            const deactivator = await AdminModel.findById(worker.deactivatedBy).select("email fullName");
+            const deactivatorInfo = deactivator
+                ? `${deactivator.fullName} (${deactivator.email})`
+                : "a System Administrator";
+
+            res.status(403).json({
+                message: `Your account has been deactivated. Please contact ${deactivatorInfo} for more information.`,
+                success: false
+            });
+            return;
+        }
+
         const accessToken = jwt.sign(
             { id: worker._id, role: "WORKER" },
             process.env.JWT_PASSWORD!,

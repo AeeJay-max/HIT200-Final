@@ -7,10 +7,11 @@ const WorkerSchema = new mongoose_1.Schema({
     email: { type: String, required: true, lowercase: true, unique: true },
     password: { type: String, required: true },
     phonenumber: { type: String, required: true },
-    department: { type: mongoose_1.Schema.Types.ObjectId, ref: "Department", required: true },
+    department: { type: String, required: true },
     role: { type: String, enum: ["DEPARTMENT_WORKER"], default: "DEPARTMENT_WORKER" },
     createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "Admin", required: true },
     isActive: { type: Boolean, default: true },
+    deactivatedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "Admin" },
     pushSubscription: { type: mongoose_1.Schema.Types.Mixed }, // Store Web Push Subscription object
     // Productivity analytics fields
     performanceScore: { type: Number, default: 100 },

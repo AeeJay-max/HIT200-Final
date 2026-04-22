@@ -15,6 +15,7 @@ import {
   getAllAdmins,
   verifyIssueCompletion,
   manualEscalationAssign,
+  getDepartments,
 } from "../controllers/admin.controller";
 import { getIssues } from "../controllers/issues.controllers";
 
@@ -58,5 +59,6 @@ router.post("/admin/analytics/radius", authMiddleware, requireRole(["admin"]), g
 router.put("/admin/issue/:id/verify", authMiddleware, requireRole(["admin"]), verifyIssueCompletion);
 router.post("/admin/issue/:id/escalation-assign", authMiddleware, requireRole(["MAIN_ADMIN"]), manualEscalationAssign);
 router.get("/admins", authMiddleware, requireRole(["MAIN_ADMIN"]), getAllAdmins);
+router.get("/departments", authMiddleware, getDepartments);
 
 export default router;

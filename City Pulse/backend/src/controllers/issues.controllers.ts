@@ -11,6 +11,7 @@ import { IssueVoteModel } from "../models/issueVote.model";
 import { sendTargetedNotification } from "./notification.controller";
 import { logAction } from "../services/audit.service";
 import { updateCitizenTrustScore } from "../services/trustScore.service";
+import { getIO } from "../utils/socket";
 
 
 export const createIssue = async (
@@ -58,17 +59,9 @@ export const createIssue = async (
       return;
     }
 
-    // Automatic Department Routing
-    const deptString = getDepartmentForIssueCategory(issueType);
-    let deptId = null;
-    if (deptString) {
-      let deptDoc = await DepartmentModel.findOne({ name: deptString });
-      if (!deptDoc) {
-        // Create auto if missing for demo/ease
-        deptDoc = await DepartmentModel.create({ name: deptString });
-      }
-      deptId = deptDoc._id;
-    }
+    // Automatic Department Routing (String Schema Standardized)
+    const { DepartmentIssueMapping } = await import("../utils/department.constants");
+    const deptString = DepartmentIssueMapping[issueType] || null;
 
     // SLA Deadline
     const deadlineTimestamp = calculateSlaDeadline(issueType);
@@ -86,7 +79,7 @@ export const createIssue = async (
       },
       status: "SUBMITTED",
       workflowStage: "SUBMITTED",
-      assignedDepartment: deptId,
+      assignedDepartment: deptString,
       deadlineTimestamp,
       dangerMetrics: req.body.dangerMetrics || undefined,
     });
@@ -739,5 +732,207 @@ export const getIssueHistory = async (req: Request, res: Response): Promise<void
   } catch (err) {
     console.error("Error fetching issue history:", err);
     res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+export const reassignDepartment = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { departmentId } = req.body;
+    const adminId = (req as any).adminId;
+
+    const adminReq = await AdminModel.findById(adminId);
+    if (!adminReq || adminReq.role !== "MAIN_ADMIN") {
+      res.status(403).json({ message: "Forbidden: Only Main Admins can reassign departments." });
+      return;
+    }
+
+    const issue = await IssueModel.findById(id);
+    if (!issue) { res.status(404).json({ message: "Issue not found" }); return; }
+
+    issue.assignedDepartment = departmentId;
+    issue.departmentAdminAssignedBy = undefined;
+    issue.workerAssignedToFix = undefined;
+    issue.workflowStage = "ROUTED_TO_DEPARTMENT";
+    issue.status = "Pending";
+    await issue.save();
+    res.json({ success: true, message: "Department reassigned", issue });
+  } catch (e: any) { res.status(500).json({ message: e.message }); }
+};
+
+export const overrideAssignee = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { assigneeId, role } = req.body;
+    const adminId = (req as any).adminId;
+
+    const adminReq = await AdminModel.findById(adminId);
+    if (!adminReq || adminReq.role !== "MAIN_ADMIN") { res.status(403).json({ message: "Forbidden: Only Main Admins can override assignees." }); return; }
+
+    const issue = await IssueModel.findById(id);
+    if (!issue) { res.status(404).json({ message: "Issue not found" }); return; }
+
+    issue.assignedToUserId = assigneeId;
+    issue.assignedToRole = role;
+
+    if (role === "DEPARTMENT_ADMIN") {
+      issue.departmentAdminAssignedBy = assigneeId;
+      issue.workerAssignedToFix = undefined;
+      issue.workflowStage = "AWAITING_VERIFICATION";
+      issue.status = "Pending";
+    } else if (role === "WORKER") {
+      issue.workerAssignedToFix = assigneeId;
+      issue.departmentAdminAssignedBy = undefined;
+      issue.workflowStage = "ASSIGNED_TO_WORKER";
+      issue.status = "ASSIGNED_TO_WORKER";
+    }
+
+    await issue.save();
+    res.json({ success: true, message: "Assignee overridden successfully", issue });
+  } catch (e: any) { res.status(500).json({ message: e.message }); }
+};
+
+export const getAssignablePersonnelByDepartment = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { department } = req.params;
+    const { getAssignablePersonnel } = await import("../services/issues.service");
+    const personnel = await getAssignablePersonnel(department);
+    res.json({ success: true, data: personnel });
+  } catch (e: any) { res.status(500).json({ message: e.message }); }
+};
+
+export const getIssueById = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const issue = await IssueModel.findById(id)
+      .populate("citizenId", "fullName email")
+      .populate("departmentAdminAssignedBy", "fullName email")
+      .populate("workerAssignedToFix", "fullName email");
+
+    if (!issue) {
+      res.status(404).json({ success: false, message: "Issue not found" });
+      return;
+    }
+
+    const media = await MultimediaModel.find({ issueID: id });
+    const votes = await IssueVoteModel.find({ issueId: id }).populate("userId", "fullName");
+
+    res.json({
+      success: true,
+      data: {
+        ...issue,
+        media: media.map(m => m.url),
+        votes: votes
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const getIssueDepartmentStaff = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const issue = await IssueModel.findById(id);
+    if (!issue) {
+      res.status(404).json({ success: false, message: "Issue not found" });
+      return;
+    }
+
+    const departmentName = issue.assignedDepartment;
+    if (!departmentName) {
+      res.status(400).json({ success: false, message: "Issue has no assigned department" });
+      return;
+    }
+
+    const departmentAdmins = await AdminModel.find({
+      department: departmentName,
+      role: "DEPARTMENT_ADMIN"
+    }).select("-password -__v").lean();
+
+    const workers = await WorkerModel.find({
+      department: departmentName
+    }).select("-password -__v").lean();
+
+    res.json({
+      success: true,
+      data: { departmentAdmins, workers }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const overrideDepartmentAdminAssignment = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { adminId } = req.body;
+    const requesterId = (req as any).adminId;
+
+    const mainAdmin = await AdminModel.findById(requesterId);
+    if (!mainAdmin || mainAdmin.role !== "MAIN_ADMIN") {
+      res.status(403).json({ success: false, message: "Only Main Admins can perform overrides" });
+      return;
+    }
+
+    const issue = await IssueModel.findById(id);
+    if (!issue) {
+      res.status(404).json({ success: false, message: "Issue not found" });
+      return;
+    }
+
+    issue.departmentAdminAssignedBy = adminId;
+    issue.workerAssignedToFix = undefined;
+    issue.status = "ROUTED_TO_DEPARTMENT";
+    issue.workflowStage = "ROUTED_TO_DEPARTMENT";
+    issue.overrideSource = "MAIN_ADMIN";
+    issue.overrideTimestamp = new Date();
+
+    await issue.save();
+    try {
+      getIO().emit("issueUpdated", { issueId: id, source: "MAIN_ADMIN_OVERRIDE" });
+    } catch (err) {
+      console.error("Socket emit failed:", err);
+    }
+    res.json({ success: true, message: "Department Admin overridden successfully", data: issue });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const overrideWorkerAssignment = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { workerId } = req.body;
+    const requesterId = (req as any).adminId;
+
+    const mainAdmin = await AdminModel.findById(requesterId);
+    if (!mainAdmin || mainAdmin.role !== "MAIN_ADMIN") {
+      res.status(403).json({ success: false, message: "Only Main Admins can perform overrides" });
+      return;
+    }
+
+    const issue = await IssueModel.findById(id);
+    if (!issue) {
+      res.status(404).json({ success: false, message: "Issue not found" });
+      return;
+    }
+
+    issue.workerAssignedToFix = workerId;
+    issue.departmentAdminAssignedBy = undefined;
+    issue.status = "ASSIGNED_TO_WORKER";
+    issue.workflowStage = "ASSIGNED_TO_WORKER";
+    issue.overrideSource = "MAIN_ADMIN";
+    issue.overrideTimestamp = new Date();
+
+    await issue.save();
+    try {
+      getIO().emit("issueUpdated", { issueId: id, source: "MAIN_ADMIN_OVERRIDE" });
+    } catch (err) {
+      console.error("Socket emit failed:", err);
+    }
+    res.json({ success: true, message: "Worker overridden successfully", data: issue });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };

@@ -33,7 +33,7 @@ const startTimelineEnforcementCron = () => {
                 status: { $ne: 'Resolved' },
                 overdueStatus: false,
                 deadlineTimestamp: { $lt: now }
-            }).populate('assignedDepartment');
+            });
             const mainAdmin = yield admin_model_1.AdminModel.findOne({ role: 'MAIN_ADMIN' });
             for (const issue of overdueIssues) {
                 issue.overdueStatus = true;
