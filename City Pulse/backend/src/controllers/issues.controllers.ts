@@ -141,7 +141,7 @@ export const getIssues = async (req: Request, res: Response): Promise<void> => {
       })
     );
 
-    res.json({ issues: issuesWithMedia });
+    res.json({ success: true, data: issuesWithMedia });
   } catch (err) {
     console.error("Error fetching issues:", err);
     res.status(500).json({ message: "Something went wrong" });
@@ -807,7 +807,8 @@ export const getIssueById = async (req: Request, res: Response): Promise<void> =
     const issue = await IssueModel.findById(id)
       .populate("citizenId", "fullName email")
       .populate("departmentAdminAssignedBy", "fullName email")
-      .populate("workerAssignedToFix", "fullName email");
+      .populate("workerAssignedToFix", "fullName email")
+      .lean();
 
     if (!issue) {
       res.status(404).json({ success: false, message: "Issue not found" });

@@ -156,7 +156,7 @@ const getIssues = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             const media = yield multimedia_model_1.MultimediaModel.find({ issueID: issue._id });
             return Object.assign(Object.assign({}, issue), { reportedBy: ((_a = issue.citizenId) === null || _a === void 0 ? void 0 : _a.fullName) || "Anonymous", image: media.length > 0 ? media[0].url : null, media: media.map(m => m.url) });
         })));
-        res.json({ issues: issuesWithMedia });
+        res.json({ success: true, data: issuesWithMedia });
     }
     catch (err) {
         console.error("Error fetching issues:", err);
@@ -776,7 +776,8 @@ const getIssueById = (req, res) => __awaiter(void 0, void 0, void 0, function* (
         const issue = yield issue_model_1.IssueModel.findById(id)
             .populate("citizenId", "fullName email")
             .populate("departmentAdminAssignedBy", "fullName email")
-            .populate("workerAssignedToFix", "fullName email");
+            .populate("workerAssignedToFix", "fullName email")
+            .lean();
         if (!issue) {
             res.status(404).json({ success: false, message: "Issue not found" });
             return;

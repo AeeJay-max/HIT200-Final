@@ -7,11 +7,12 @@ export const connectDB = async () => {
     throw new Error("DATABASE_URL is not defined in environment variables");
   }
 
-  console.log("Attempting to connect to MongoDB...");
+  const maskedUrl = url.replace(/:([^@]+)@/, ":****@");
+  console.log(`Attempting to connect to MongoDB: ${maskedUrl}`);
 
   try {
     await mongoose.connect(url, {
-      serverSelectionTimeoutMS: 5000 // Timeout after 5s instead of default 30s
+      serverSelectionTimeoutMS: 5000
     });
     console.log("Connected to DB successfully!");
   } catch (err) {

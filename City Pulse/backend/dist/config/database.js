@@ -20,10 +20,11 @@ const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
     if (!url) {
         throw new Error("DATABASE_URL is not defined in environment variables");
     }
-    console.log("Attempting to connect to MongoDB...");
+    const maskedUrl = url.replace(/:([^@]+)@/, ":****@");
+    console.log(`Attempting to connect to MongoDB: ${maskedUrl}`);
     try {
         yield mongoose_1.default.connect(url, {
-            serverSelectionTimeoutMS: 5000 // Timeout after 5s instead of default 30s
+            serverSelectionTimeoutMS: 5000
         });
         console.log("Connected to DB successfully!");
     }

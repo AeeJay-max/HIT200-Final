@@ -169,7 +169,7 @@ export const IssueActionDrawer = ({ issueId, onClose, onActionSuccess }: IssueAc
                                         <Badge className="bg-rose-600 text-[10px] uppercase">Override Mode Enabled</Badge>
                                     )}
                                 </div>
-                                <span className="text-[10px] font-mono text-slate-400">ID: {issue._id.substring(0, 12)}...</span>
+                                <span className="text-[10px] font-mono text-slate-400">ID: {issue._id?.substring(0, 12)}...</span>
                             </div>
                             <h3 className="text-xl font-black text-slate-800 leading-tight">{issue.title}</h3>
                             <p className="text-sm text-slate-600 mt-2 bg-white p-3 rounded-lg border shadow-sm">{issue.description}</p>

@@ -24,25 +24,26 @@ export function WorkflowQueues({ onAssignClick }: { onAssignClick: (issue: Issue
     useEffect(() => {
         const fetchIssues = async () => {
             try {
-                const response = await fetch(`${VITE_BACKEND_URL}/api/v1/issues`);
+                const response = await fetch(`${VITE_BACKEND_URL}/api/v1/issues`, {
+                    headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` }
+                });
                 const data = await response.json();
-                if (data.success) {
-                    const sorted = data.data.sort((a: Issue, b: Issue) => b.upvotes?.length - a.upvotes?.length);
-                    setIssues(sorted);
-                }
+                const issuesList = data.data || data.issues || [];
+                const sorted = [...issuesList].sort((a: Issue, b: Issue) => (b.upvotes?.length || 0) - (a.upvotes?.length || 0));
+                setIssues(sorted);
             } catch (err) { }
             setLoading(false);
         };
         fetchIssues();
     }, []);
 
-    const unassigned = issues.filter(i => i.workflowStage === "SUBMITTED" || !i.assignedDepartment);
-    const assignedToDept = issues.filter(i => i.workflowStage === "ROUTED_TO_DEPARTMENT");
-    const assignedToWorker = issues.filter(i => i.workflowStage === "ASSIGNED_TO_WORKER");
-    const inProgress = issues.filter(i => i.workflowStage === "IN_PROGRESS" || i.status === "In Progress");
-    const awaitingVerification = issues.filter(i => i.workflowStage === "AWAITING_VERIFICATION");
-    const escalated = issues.filter(i => i.workflowStage === "ESCALATED");
-    const overdue = issues.filter(i => i.timeline?.isOverdue);
+    const unassigned = issues.filter(i => i.workflowStage === "SUBMITTED" || i.status === "SUBMITTED" || i.status === "Reported" || !i.assignedDepartment);
+    const assignedToDept = issues.filter(i => i.workflowStage === "ROUTED_TO_DEPARTMENT" || i.status === "ROUTED_TO_DEPARTMENT");
+    const assignedToWorker = issues.filter(i => i.workflowStage === "ASSIGNED_TO_WORKER" || i.status === "Worker Assigned");
+    const inProgress = issues.filter(i => i.workflowStage === "IN_PROGRESS" || i.status === "In Progress" || i.workflowStage === "WORKER_ACCEPTED");
+    const awaitingVerification = issues.filter(i => i.workflowStage === "AWAITING_VERIFICATION" || i.status === "Resolved (Unverified)");
+    const escalated = issues.filter(i => i.workflowStage === "ESCALATED" || i.status === "Escalated");
+    const overdue = issues.filter(i => i.timeline?.isOverdue || i.overdueStatus);
 
     const panels = [
         { title: "Unassigned Issues", data: unassigned, color: "bg-stone-100 text-stone-700" },
