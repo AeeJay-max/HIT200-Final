@@ -251,7 +251,7 @@ export default function MainAdminDashboard() {
                 )}
             </div>
 
-            {/* BOTTOM PANEL (Resizable Horizontal Array) */}
+            {/* BOTTOM PANEL (Resizable Horizontal Array) 
             <div className="h-[30vh] min-h-[200px] border-t-2 border-slate-200 bg-white shrink-0 relative z-20 flex flex-col">
                 <PanelGroup orientation="horizontal" onLayoutChanged={(layout: any) => localStorage.setItem("mainAdminBottomLayoutConfig", JSON.stringify(layout))}>
                     <Panel defaultSize={initialBottomLayout[0]} minSize={10} className="p-4 overflow-y-auto bg-slate-50/50 border-r">
@@ -270,7 +270,7 @@ export default function MainAdminDashboard() {
                         <DepartmentPerformancePanel />
                     </Panel>
                 </PanelGroup>
-            </div>
+            </div>*/}
 
             <IssueActionDrawer
                 issueId={selectedIssueId}

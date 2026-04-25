@@ -28,7 +28,17 @@ const buildFilters = (req: Request) => {
     if (req.query.department) filters.assignedDepartment = req.query.department;
     if (req.query.status) filters.status = req.query.status;
     if (req.query.priority) filters.priority = req.query.priority;
-    if (req.query.daterange) {
+
+    if (req.query.startDate || req.query.endDate) {
+        const dateFilter: any = {};
+        if (req.query.startDate) dateFilter.$gte = new Date(req.query.startDate as string);
+        if (req.query.endDate) {
+            const end = new Date(req.query.endDate as string);
+            end.setHours(23, 59, 59, 999);
+            dateFilter.$lte = end;
+        }
+        filters.createdAt = dateFilter;
+    } else if (req.query.daterange) {
         const days = parseInt(req.query.daterange as string);
         if (!isNaN(days)) {
             const date = new Date();

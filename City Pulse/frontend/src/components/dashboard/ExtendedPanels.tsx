@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { VITE_BACKEND_URL } from "../../config/config";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
-import { Badge } from "../ui/badge";
 import { toast } from "sonner";
 import { Clock, CheckCircle2, AlertTriangle, Map } from "lucide-react";
 import IssueMapView from "../IssueMapView";
@@ -110,6 +109,10 @@ export const RecentlyResolvedPanel = ({ onIssueClick }: { onIssueClick: (issue: 
     );
 };
 
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
+
+const CHART_COLORS = ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#14b8a6', '#f43f5e'];
+
 export const AnalyticsSummaryPanel = () => {
     const [analytics, setAnalytics] = useState<any>(null);
     useEffect(() => {
@@ -126,11 +129,40 @@ export const AnalyticsSummaryPanel = () => {
             </CardHeader>
             <CardContent className="pt-4 flex flex-col gap-6">
                 <div>
-                    <h3 className="font-bold text-slate-600 mb-2">Most Common Issue Types</h3>
-                    <div className="flex flex-wrap gap-2">
-                        {analytics.mostCommonIssueType?.map((t: any) => (
-                            <Badge key={t._id} variant="secondary" className="px-3 py-1 bg-amber-100 text-amber-800">{t._id || 'Unknown'}: {t.count}</Badge>
-                        ))}
+                    <h3 className="font-bold text-slate-600 mb-4">Most Common Issue Types</h3>
+                    <div className="h-[200px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart layout="vertical" data={analytics.mostCommonIssueType} margin={{ left: -20, right: 30 }}>
+                                <XAxis type="number" hide />
+                                <YAxis
+                                    dataKey="_id"
+                                    type="category"
+                                    tick={{ fontSize: 10, fontWeight: 'bold' }}
+                                    width={120}
+                                    axisLine={false}
+                                    tickLine={false}
+                                />
+                                <Tooltip cursor={{ fill: 'transparent' }} />
+                                <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={20}>
+                                    {analytics.mostCommonIssueType?.map((_: any, index: number) => (
+                                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 bg-blue-50 rounded-lg">
+                        <p className="text-[10px] font-bold text-blue-600 uppercase">Total Departments</p>
+                        <p className="text-2xl font-black text-blue-800">{analytics.issuesPerDepartment?.length || 0}</p>
+                    </div>
+                    <div className="p-3 bg-emerald-50 rounded-lg">
+                        <p className="text-[10px] font-bold text-emerald-600 uppercase">Avg Resolution</p>
+                        <p className="text-2xl font-black text-emerald-800">
+                            {Math.round(analytics.issuesPerDepartment?.reduce((acc: any, curr: any) => acc + (curr.averageResolutionTimeMs || 0), 0) / (analytics.issuesPerDepartment?.length || 1) / 3600000)}h
+                        </p>
                     </div>
                 </div>
             </CardContent>
