@@ -15,6 +15,7 @@ const analytics_routes_1 = __importDefault(require("./routes/analytics.routes"))
 const notification_routes_1 = __importDefault(require("./routes/notification.routes"));
 const audit_routes_1 = __importDefault(require("./routes/audit.routes"));
 const dashboard_routes_1 = __importDefault(require("./routes/dashboard.routes"));
+const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const auth_middleware_1 = require("./middlerware/auth.middleware");
 const requireRole_1 = require("./middlerware/requireRole");
@@ -68,6 +69,7 @@ app.use("/api/v1/admin/login", authLimiter);
 app.use("/api/v1/worker/login", authLimiter);
 app.use("/api/v1/issues/create", reportLimiter); // Check actual path
 app.use("/api/v1/issues/:id/vote", voteLimiter);
+app.use("/api/v1/auth", auth_routes_1.default);
 app.use("/api/v1", citizen_routes_1.default);
 app.use("/api/v1", admin_routes_1.default);
 app.use("/api/v1", issue_routes_1.default);

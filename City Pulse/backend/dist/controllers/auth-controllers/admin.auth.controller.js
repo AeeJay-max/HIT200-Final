@@ -19,6 +19,7 @@ const refreshToken_model_1 = require("../../models/refreshToken.model");
 const zod_1 = require("zod");
 const crypto_1 = __importDefault(require("crypto"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const phone_utils_1 = require("../../utils/phone.utils");
 const signupSchema = zod_1.z.object({
     fullName: zod_1.z.string().min(1, { message: "Full name is required" }).trim(),
     password: zod_1.z
@@ -31,7 +32,7 @@ const signupSchema = zod_1.z.object({
     email: zod_1.z.string().email({ message: "Invalid email format" }).trim(),
     phonenumber: zod_1.z
         .string()
-        .length(10, { message: "Phone number must be exactly 10 digits" })
+        .min(9, { message: "Phone number must be at least 9 characters" })
         .trim(),
     department: zod_1.z.string().trim(),
     adminAccessCode: zod_1.z
@@ -43,10 +44,24 @@ const adminSignup = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
     try {
         const parsedData = signupSchema.parse(req.body);
         const { fullName, password, email, phonenumber, department, adminAccessCode, } = parsedData;
+        // Normalization
+        let normalizedPhone;
+        try {
+            normalizedPhone = (0, phone_utils_1.formatZimbabweNumber)(phonenumber);
+        }
+        catch (e) {
+            res.status(400).json({ message: e.message });
+            return;
+        }
         //Check if the admin already exists
         const existingUser = yield admin_model_1.AdminModel.findOne({ email });
         if (existingUser) {
             res.status(400).json({ message: " User already exists" });
+            return;
+        }
+        const existingPhone = yield admin_model_1.AdminModel.findOne({ phonenumber: normalizedPhone });
+        if (existingPhone) {
+            res.status(400).json({ message: "Phone number already registered" });
             return;
         }
         //Hash password and create new admin
@@ -55,7 +70,7 @@ const adminSignup = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             fullName,
             password: hashedPassword,
             email,
-            phonenumber,
+            phonenumber: normalizedPhone,
             department,
             adminAccessCode,
         });

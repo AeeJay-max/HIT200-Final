@@ -7,12 +7,12 @@ const NotificationSchema = new mongoose_1.Schema({
     message: { type: String, required: true },
     type: {
         type: String,
-        enum: ["Power Outage", "Water Supply", "Road Maintenance", "Other", "System Alert", "Escalation", "Assignment", "Status Update", "Broadcast", "Warning"],
+        enum: ["Power Outage", "Water Supply", "Road Maintenance", "Other", "System Alert", "Escalation", "Assignment", "Status Update", "Broadcast", "Warning", "Critical"],
         default: "Other"
     },
     priority: {
         type: String,
-        enum: ["Normal", "Urgent", "Critical"],
+        enum: ["Normal", "Urgent", "Critical", "High"],
         default: "Normal"
     },
     linkTo: { type: String },

@@ -10,6 +10,7 @@ import analyticsRoutes from "./routes/analytics.routes";
 import notificationRoutes from "./routes/notification.routes";
 import auditRoutes from "./routes/audit.routes";
 import dashboardRoutes from "./routes/dashboard.routes";
+import authRoutes from "./routes/auth.routes";
 import mongoose from "mongoose";
 import { authMiddleware } from "./middlerware/auth.middleware";
 import { requireRole } from "./middlerware/requireRole";
@@ -76,6 +77,7 @@ app.use("/api/v1/worker/login", authLimiter);
 app.use("/api/v1/issues/create", reportLimiter); // Check actual path
 app.use("/api/v1/issues/:id/vote", voteLimiter);
 
+app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1", citizenRoutes);
 app.use("/api/v1", adminRoutes);
 app.use("/api/v1", issueRoutes);

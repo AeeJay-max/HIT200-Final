@@ -19,6 +19,9 @@ const refreshToken_model_1 = require("../../models/refreshToken.model");
 const zod_1 = require("zod");
 const crypto_1 = __importDefault(require("crypto"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const verification_model_1 = require("../../models/verification.model");
+const whatsapp_service_1 = require("../../services/whatsapp.service");
+const phone_utils_1 = require("../../utils/phone.utils");
 const signupSchema = zod_1.z.object({
     fullName: zod_1.z.string().min(1, { message: "Full name is required" }).trim(),
     password: zod_1.z
@@ -31,26 +34,54 @@ const signupSchema = zod_1.z.object({
     email: zod_1.z.string().email({ message: "Invalid email format" }).trim(),
     phonenumber: zod_1.z
         .string()
-        .length(10, { message: "Phone number must be exactly 10 digits" }),
+        .min(9, { message: "Phone number must be at least 9 characters" }),
 });
 const citizenSignup = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const parsedData = signupSchema.parse(req.body);
         const { fullName, password, email, phonenumber } = parsedData;
+        // Normalization
+        let normalizedPhone;
+        try {
+            normalizedPhone = (0, phone_utils_1.formatZimbabweNumber)(phonenumber);
+        }
+        catch (e) {
+            res.status(400).json({ message: e.message });
+            return;
+        }
         const existingCitizen = yield citizen_model_1.CitizenModel.findOne({ email });
         if (existingCitizen) {
             res.status(400).json({ message: " Citizen already exists" });
             return;
         }
+        const existingPhone = yield citizen_model_1.CitizenModel.findOne({ phonenumber: normalizedPhone });
+        if (existingPhone) {
+            res.status(400).json({ message: "Phone number already registered" });
+            return;
+        }
         const hashedPassword = yield bcryptjs_1.default.hash(password, 10);
-        yield citizen_model_1.CitizenModel.create({
+        const newCitizen = yield citizen_model_1.CitizenModel.create({
             fullName,
             password: hashedPassword,
             email,
-            phonenumber,
+            phonenumber: normalizedPhone,
+            isVerified: false,
         });
-        console.log("Citizen created!");
-        res.status(201).json({ message: "Citizen Signed up!" });
+        // Generate OTP
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        const hashedCode = yield bcryptjs_1.default.hash(code, 10);
+        // Store verification
+        yield verification_model_1.VerificationModel.create({
+            userId: newCitizen._id,
+            code: hashedCode,
+            expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+            isUsed: false,
+            attempts: 0,
+        });
+        // Send WhatsApp message
+        yield (0, whatsapp_service_1.sendWhatsAppCode)(normalizedPhone, code);
+        console.log("Citizen created and verification code sent!");
+        res.status(201).json({ message: "Verification code sent via WhatsApp" });
     }
     catch (err) {
         if (err.name === "ZodError") {
@@ -73,6 +104,10 @@ const citizenSignin = (req, res) => __awaiter(void 0, void 0, void 0, function* 
         const existingCitizen = yield citizen_model_1.CitizenModel.findOne({ email });
         if (!existingCitizen) {
             res.status(400).json({ message: "Invalid email or password" });
+            return;
+        }
+        if (!existingCitizen.isVerified) {
+            res.status(401).json({ message: "Account not verified via WhatsApp" });
             return;
         }
         const isPasswordValid = yield bcryptjs_1.default.compare(password, existingCitizen.password);

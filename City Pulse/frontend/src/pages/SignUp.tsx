@@ -63,10 +63,9 @@ const SignUp = () => {
       return;
     }
     if (
-      citizenForm.phonenumber.trim().length !== 10 ||
-      !/^\d{10}$/.test(citizenForm.phonenumber.trim())
+      citizenForm.phonenumber.trim().length < 9
     ) {
-      toast.error("Phone number must be exactly 10 digits.");
+      toast.error("Phone number must be at least 9 characters.");
       return;
     }
 
@@ -88,8 +87,8 @@ const SignUp = () => {
       const data = await response.json();
 
       if (response.ok) {
-        toast.success("Registration Successful! You can now sign in.");
-        navigate("/signin");
+        toast.success("Registration Successful! Please verify your WhatsApp number.");
+        navigate("/verify-whatsapp", { state: { email: citizenForm.email } });
       } else if (data.errors && Array.isArray(data.errors)) {
         const errs: Record<string, string> = {};
         data.errors.forEach((err: any) => {
@@ -206,7 +205,7 @@ const SignUp = () => {
                         <Input
                           id="citizen-phone"
                           type="tel"
-                          placeholder="0123456789"
+                          placeholder="0771234567 or +263771234567"
                           value={citizenForm.phonenumber}
                           onChange={(e) =>
                             setCitizenForm({
@@ -216,6 +215,9 @@ const SignUp = () => {
                           }
                           required
                         />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Zimbabwe numbers will be normalized to +263 format.
+                        </p>
                         {citizenErrors.phonenumber && (
                           <p className="text-red-600 text-sm">
                             {citizenErrors.phonenumber}

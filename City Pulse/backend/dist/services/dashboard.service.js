@@ -143,9 +143,44 @@ const getAnalyticsSummary = (...args_1) => __awaiter(void 0, [...args_1], void 0
         { $match: filters },
         { $group: { _id: "$issueType", count: { $sum: 1 } } },
         { $sort: { count: -1 } },
-        { $limit: 5 }
+        { $limit: 10 } // Increased limit to show more variety if available
     ]);
-    return { issuesPerDepartment, mostCommonIssueType: commonTypes };
+    // Time-series: Reported issues
+    const reportedOverTime = yield issue_model_1.IssueModel.aggregate([
+        { $match: filters },
+        {
+            $group: {
+                _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+                count: { $sum: 1 }
+            }
+        },
+        { $sort: { _id: 1 } }
+    ]);
+    // Time-series: Resolved issues
+    const resolvedFilters = Object.assign({}, filters);
+    // If filtering by specific date range for creation, we might still want to see resolutions in that same period
+    // Or we adjust filters to look at resolutionTimestamp range.
+    // For "Issues Resolved within specified time period", we should use resolutionTimestamp.
+    const resolvedRangeFilters = {};
+    if (filters.createdAt) {
+        resolvedRangeFilters.resolutionTimestamp = filters.createdAt;
+    }
+    const resolvedOverTime = yield issue_model_1.IssueModel.aggregate([
+        { $match: Object.assign(Object.assign({}, filters), { status: { $in: ["Resolved", "Closed", "Resolved (Unverified)", "COMPLETED"] } }) },
+        {
+            $group: {
+                _id: { $dateToString: { format: "%Y-%m-%d", date: { $ifNull: ["$resolutionTimestamp", "$updatedAt"] } } },
+                count: { $sum: 1 }
+            }
+        },
+        { $sort: { _id: 1 } }
+    ]);
+    return {
+        issuesPerDepartment,
+        mostCommonIssueType: commonTypes,
+        reportedOverTime,
+        resolvedOverTime
+    };
 });
 exports.getAnalyticsSummary = getAnalyticsSummary;
 const getMapData = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (filters = {}) {

@@ -47,7 +47,7 @@ const SignIn = () => {
     );
 
     try {
-      let result: boolean;
+      let result: any;
       if (activeTab === "citizen") {
         result = await Promise.all([
           login(citizenForm.email, citizenForm.password, "citizen"),
@@ -70,7 +70,7 @@ const SignIn = () => {
         ]).then(([res]) => res);
       }
 
-      if (result === true) {
+      if (result.success) {
         toast.success("Sign In Successful!", {
           description: "Welcome back!",
         });
@@ -83,8 +83,19 @@ const SignIn = () => {
         navigate(path, { replace: true });
         hideLoader();
       } else {
+        if (activeTab === "citizen" && result.status === 401) {
+          toast.error("Account Unverified", {
+            description: "Redirecting to verification page...",
+          });
+          setTimeout(() => {
+            navigate("/verify-whatsapp", { state: { email: citizenForm.email } });
+          }, 1500);
+          hideLoader();
+          return;
+        }
+
         toast.error("Sign In Failed!", {
-          description: "Invalid credentials",
+          description: result.message || "Invalid credentials",
         });
         hideLoader();
       }

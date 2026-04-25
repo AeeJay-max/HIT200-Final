@@ -26,6 +26,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/signin" state={{ from: location }} replace />;
   }
 
+  if (user.role === "citizen" && user.isVerified === false) {
+    return <Navigate to="/verify-whatsapp" state={{ email: user.email }} replace />;
+  }
+
   if (requiredRole) {
     const roleStr = String(user.role).toUpperCase();
     let normalizedRole = roleStr;

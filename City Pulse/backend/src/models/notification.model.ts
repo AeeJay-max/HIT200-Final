@@ -3,8 +3,8 @@ import { model, Schema, Document, Types } from "mongoose";
 export interface INotification extends Document {
     title: string;
     message: string;
-    type: "Power Outage" | "Water Supply" | "Road Maintenance" | "Other" | "System Alert" | "Escalation" | "Assignment" | "Status Update" | "Broadcast" | "Warning";
-    priority: "Normal" | "Urgent" | "Critical";
+    type: "Power Outage" | "Water Supply" | "Road Maintenance" | "Other" | "System Alert" | "Escalation" | "Assignment" | "Status Update" | "Broadcast" | "Warning" | "Critical";
+    priority: "Normal" | "Urgent" | "Critical" | "High";
     linkTo?: string;
     createdBy?: Types.ObjectId; // Optional for system-generated alerts
     recipientId?: Types.ObjectId; // Targeted notification
@@ -21,12 +21,12 @@ const NotificationSchema = new Schema<INotification>(
         message: { type: String, required: true },
         type: {
             type: String,
-            enum: ["Power Outage", "Water Supply", "Road Maintenance", "Other", "System Alert", "Escalation", "Assignment", "Status Update", "Broadcast", "Warning"],
+            enum: ["Power Outage", "Water Supply", "Road Maintenance", "Other", "System Alert", "Escalation", "Assignment", "Status Update", "Broadcast", "Warning", "Critical"],
             default: "Other"
         },
         priority: {
             type: String,
-            enum: ["Normal", "Urgent", "Critical"],
+            enum: ["Normal", "Urgent", "Critical", "High"],
             default: "Normal"
         },
         linkTo: { type: String },

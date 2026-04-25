@@ -13,6 +13,7 @@ interface User {
   email: string;
   fullName: string;
   role: "citizen" | "admin" | "worker" | "MAIN_ADMIN" | "DEPARTMENT_ADMIN" | "DEPARTMENT_WORKER";
+  isVerified?: boolean;
   phonenumber?: string;
   department?: string;
   adminAccessCode?: string;
@@ -26,7 +27,7 @@ interface AuthContextType {
     password: string,
     role: "citizen" | "admin" | "worker" | "MAIN_ADMIN" | "DEPARTMENT_ADMIN" | "DEPARTMENT_WORKER",
     adminAccessCode?: string
-  ) => Promise<boolean>;
+  ) => Promise<{ success: boolean; message?: string; status?: number }>;
   register: (userData: any, role: "citizen" | "admin" | "worker" | "MAIN_ADMIN" | "DEPARTMENT_ADMIN" | "DEPARTMENT_WORKER") => Promise<void>;
   logout: () => void;
   isLoading: boolean;
@@ -82,6 +83,7 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
           ...result,
           id: result._id || result.id,
           role: result.role || storedRole,
+          isVerified: result.isVerified,
           department: typeof result.department === "object" ? result.department.name : result.department
         };
         setUser(normalizedUser);
@@ -144,7 +146,7 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
     password: string,
     role: "citizen" | "admin" | "worker" | "MAIN_ADMIN" | "DEPARTMENT_ADMIN" | "DEPARTMENT_WORKER",
     adminAccessCode?: string
-  ) => {
+  ): Promise<{ success: boolean; message?: string; status?: number }> => {
     setIsLoading(true);
     try {
       let endpoint = "citizen/signin";
@@ -154,13 +156,11 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
       const body: any = { email, password };
 
       if (!email || !password) {
-        alert("Email and password are required.");
-        return false;
+        return { success: false, message: "Email and password are required." };
       }
 
       if (role === "admin" && !adminAccessCode) {
-        alert("Admin access code is required for admin login.");
-        return false;
+        return { success: false, message: "Admin access code is required for admin login." };
       }
 
       if (role === "admin" && adminAccessCode) {
@@ -182,8 +182,11 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
 
       if (!response.ok || !result.token || !result.user) {
         console.error("Invalid login response:", result);
-        alert(result.message || "Login failed. Please check your credentials.");
-        return false;
+        return {
+          success: false,
+          message: result.message || "Login failed.",
+          status: response.status
+        };
       }
 
       const authUser: User = {
@@ -191,6 +194,7 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
         email: result.user.email,
         fullName: result.user.fullName || "Guest",
         role: result.user.role || (role === "worker" ? "DEPARTMENT_WORKER" : role),
+        isVerified: result.user.isVerified,
         phonenumber: result.user.phonenumber || "",
         department: typeof result.user.department === "object" ? result.user.department.name : (result.user.department || ""),
         adminAccessCode: result.user.adminAccessCode || "",
@@ -210,10 +214,10 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
 
       console.log("Auth User After Login:", authUser);
 
-      return true;
+      return { success: true };
     } catch (error) {
       console.error("Login Error:", error);
-      return false;
+      return { success: false, message: "Something went wrong. Please try again." };
     } finally {
       setIsLoading(false);
     }

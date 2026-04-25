@@ -5,6 +5,9 @@ import { RefreshTokenModel } from "../../models/refreshToken.model";
 import { z } from "zod";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
+import { VerificationModel } from "../../models/verification.model";
+import { sendWhatsAppCode } from "../../services/whatsapp.service";
+import { formatZimbabweNumber } from "../../utils/phone.utils";
 
 const signupSchema = z.object({
   fullName: z.string().min(1, { message: "Full name is required" }).trim(),
@@ -22,7 +25,7 @@ const signupSchema = z.object({
   email: z.string().email({ message: "Invalid email format" }).trim(),
   phonenumber: z
     .string()
-    .length(10, { message: "Phone number must be exactly 10 digits" }),
+    .min(9, { message: "Phone number must be at least 9 characters" }),
 });
 
 export const citizenSignup = async (
@@ -33,22 +36,55 @@ export const citizenSignup = async (
     const parsedData = signupSchema.parse(req.body);
     const { fullName, password, email, phonenumber } = parsedData;
 
+    // Normalization
+    let normalizedPhone: string;
+    try {
+      normalizedPhone = formatZimbabweNumber(phonenumber);
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
+      return;
+    }
+
     const existingCitizen = await CitizenModel.findOne({ email });
     if (existingCitizen) {
       res.status(400).json({ message: " Citizen already exists" });
       return;
     }
 
+    const existingPhone = await CitizenModel.findOne({ phonenumber: normalizedPhone });
+    if (existingPhone) {
+      res.status(400).json({ message: "Phone number already registered" });
+      return;
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    await CitizenModel.create({
+    const newCitizen = await CitizenModel.create({
       fullName,
       password: hashedPassword,
       email,
-      phonenumber,
+      phonenumber: normalizedPhone,
+      isVerified: false,
     });
-    console.log("Citizen created!");
-    res.status(201).json({ message: "Citizen Signed up!" });
+
+    // Generate OTP
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const hashedCode = await bcrypt.hash(code, 10);
+
+    // Store verification
+    await VerificationModel.create({
+      userId: newCitizen._id,
+      code: hashedCode,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+      isUsed: false,
+      attempts: 0,
+    });
+
+    // Send WhatsApp message
+    await sendWhatsAppCode(normalizedPhone, code);
+
+    console.log("Citizen created and verification code sent!");
+    res.status(201).json({ message: "Verification code sent via WhatsApp" });
   } catch (err: any) {
     if (err.name === "ZodError") {
       res.status(400).json({
@@ -75,6 +111,11 @@ export const citizenSignin = async (
 
     if (!existingCitizen) {
       res.status(400).json({ message: "Invalid email or password" });
+      return;
+    }
+
+    if (!existingCitizen.isVerified) {
+      res.status(401).json({ message: "Account not verified via WhatsApp" });
       return;
     }
 

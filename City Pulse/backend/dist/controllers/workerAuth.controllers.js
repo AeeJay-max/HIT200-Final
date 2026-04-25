@@ -51,6 +51,7 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const refreshToken_model_1 = require("../models/refreshToken.model");
 const crypto_1 = __importDefault(require("crypto"));
+const phone_utils_1 = require("../utils/phone.utils");
 const workerSignup = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { fullName, email, password, phonenumber, departmentId } = req.body;
@@ -59,9 +60,23 @@ const workerSignup = (req, res) => __awaiter(void 0, void 0, void 0, function* (
             res.status(400).json({ message: "All fields are required" });
             return;
         }
+        // Normalization
+        let normalizedPhone;
+        try {
+            normalizedPhone = (0, phone_utils_1.formatZimbabweNumber)(phonenumber);
+        }
+        catch (e) {
+            res.status(400).json({ message: e.message });
+            return;
+        }
         const existingWorker = yield worker_model_1.WorkerModel.findOne({ email });
         if (existingWorker) {
             res.status(400).json({ message: "Worker already exists" });
+            return;
+        }
+        const existingPhone = yield worker_model_1.WorkerModel.findOne({ phonenumber: normalizedPhone });
+        if (existingPhone) {
+            res.status(400).json({ message: "Phone number already registered" });
             return;
         }
         const hashedPassword = yield bcryptjs_1.default.hash(password, 10);
@@ -69,7 +84,7 @@ const workerSignup = (req, res) => __awaiter(void 0, void 0, void 0, function* (
             fullName,
             email,
             password: hashedPassword,
-            phonenumber,
+            phonenumber: normalizedPhone,
             department: departmentId,
             createdBy: adminId
         });

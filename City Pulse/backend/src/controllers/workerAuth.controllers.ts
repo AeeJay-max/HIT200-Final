@@ -4,6 +4,7 @@ import bcryptjs from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { RefreshTokenModel } from "../models/refreshToken.model";
 import crypto from "crypto";
+import { formatZimbabweNumber } from "../utils/phone.utils";
 
 export const workerSignup = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -15,9 +16,24 @@ export const workerSignup = async (req: Request, res: Response): Promise<void> =
             return;
         }
 
+        // Normalization
+        let normalizedPhone: string;
+        try {
+            normalizedPhone = formatZimbabweNumber(phonenumber);
+        } catch (e: any) {
+            res.status(400).json({ message: e.message });
+            return;
+        }
+
         const existingWorker = await WorkerModel.findOne({ email });
         if (existingWorker) {
             res.status(400).json({ message: "Worker already exists" });
+            return;
+        }
+
+        const existingPhone = await WorkerModel.findOne({ phonenumber: normalizedPhone });
+        if (existingPhone) {
+            res.status(400).json({ message: "Phone number already registered" });
             return;
         }
 
@@ -27,7 +43,7 @@ export const workerSignup = async (req: Request, res: Response): Promise<void> =
             fullName,
             email,
             password: hashedPassword,
-            phonenumber,
+            phonenumber: normalizedPhone,
             department: departmentId,
             createdBy: adminId
         });

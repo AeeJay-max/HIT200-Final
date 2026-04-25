@@ -5,6 +5,7 @@ import { RefreshTokenModel } from "../../models/refreshToken.model";
 import { z } from "zod";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
+import { formatZimbabweNumber } from "../../utils/phone.utils";
 
 const signupSchema = z.object({
   fullName: z.string().min(1, { message: "Full name is required" }).trim(),
@@ -22,7 +23,7 @@ const signupSchema = z.object({
   email: z.string().email({ message: "Invalid email format" }).trim(),
   phonenumber: z
     .string()
-    .length(10, { message: "Phone number must be exactly 10 digits" })
+    .min(9, { message: "Phone number must be at least 9 characters" })
     .trim(),
   department: z.string().trim(),
   adminAccessCode: z
@@ -46,10 +47,25 @@ export const adminSignup = async (
       adminAccessCode,
     } = parsedData;
 
+    // Normalization
+    let normalizedPhone: string;
+    try {
+      normalizedPhone = formatZimbabweNumber(phonenumber);
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
+      return;
+    }
+
     //Check if the admin already exists
     const existingUser = await AdminModel.findOne({ email });
     if (existingUser) {
       res.status(400).json({ message: " User already exists" });
+      return;
+    }
+
+    const existingPhone = await AdminModel.findOne({ phonenumber: normalizedPhone });
+    if (existingPhone) {
+      res.status(400).json({ message: "Phone number already registered" });
       return;
     }
 
@@ -59,7 +75,7 @@ export const adminSignup = async (
       fullName,
       password: hashedPassword,
       email,
-      phonenumber,
+      phonenumber: normalizedPhone,
       department,
       adminAccessCode,
     });

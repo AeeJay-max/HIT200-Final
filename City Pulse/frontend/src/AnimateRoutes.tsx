@@ -11,6 +11,7 @@ import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 import DeptAdminSignUp from "./pages/DeptAdminSignUp";
 import MainAdminSignUp from "./pages/MainAdminSignUp";
+import VerifyWhatsApp from "./pages/VerifyWhatsApp";
 import ProtectedRoute from "./components/ProtectedRoute";
 import WorkerDashboard from "./pages/WorkerDashboard";
 import AssignWorkerPage from "./pages/AssignWorkerPage";
@@ -71,6 +72,14 @@ export default function AnimatedRoutes() {
           element={
             <MotionWrapper>
               <SignUp />
+            </MotionWrapper>
+          }
+        />
+        <Route
+          path="/verify-whatsapp"
+          element={
+            <MotionWrapper>
+              <VerifyWhatsApp />
             </MotionWrapper>
           }
         />
