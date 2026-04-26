@@ -87,8 +87,9 @@ const SignIn = () => {
           toast.error("Account Unverified", {
             description: "Redirecting to verification page...",
           });
+          const targetPath = result.step === "email" ? "/verify-email" : "/verify-whatsapp";
           setTimeout(() => {
-            navigate("/verify-whatsapp", { state: { email: citizenForm.email } });
+            navigate(targetPath, { state: { email: citizenForm.email } });
           }, 1500);
           hideLoader();
           return;

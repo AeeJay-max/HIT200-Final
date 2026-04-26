@@ -52,5 +52,6 @@ router.get("/issues/:id", auth_middleware_1.authMiddleware, issues_controllers_1
 router.get("/issues/:id/department-staff", auth_middleware_1.authMiddleware, issues_controllers_1.getIssueDepartmentStaff);
 router.patch("/issues/:id/override-department-admin", auth_middleware_1.authMiddleware, issues_controllers_1.overrideDepartmentAdminAssignment);
 router.patch("/issues/:id/override-worker", auth_middleware_1.authMiddleware, issues_controllers_1.overrideWorkerAssignment);
+router.patch("/issues/:id/assign-pair", auth_middleware_1.authMiddleware, issues_controllers_1.assignAdminAndWorker);
 router.get("/history", auth_middleware_1.authMiddleware, issues_controllers_1.getIssueHistory);
 exports.default = router;

@@ -11,9 +11,12 @@ const getTransporter = (authOptions) => {
         port: parseInt(process.env.SMTP_PORT || '587'),
         secure: false, // true for 465, false for other ports
         auth: {
-            user: (authOptions === null || authOptions === void 0 ? void 0 : authOptions.user) || process.env.SMTP_USER || 'default@citypulse.com',
+            user: (authOptions === null || authOptions === void 0 ? void 0 : authOptions.user) || process.env.SMTP_USER || 'citypulse402@gmail.com',
             pass: (authOptions === null || authOptions === void 0 ? void 0 : authOptions.pass) || process.env.SMTP_PASS || 'password',
         },
+        tls: {
+            rejectUnauthorized: false
+        }
     });
 };
 exports.getTransporter = getTransporter;

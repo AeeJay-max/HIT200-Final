@@ -8,6 +8,7 @@ import bcrypt from "bcryptjs";
 import { VerificationModel } from "../../models/verification.model";
 import { sendWhatsAppCode } from "../../services/whatsapp.service";
 import { formatZimbabweNumber } from "../../utils/phone.utils";
+import { sendEmailOTP } from "../../services/email.service";
 
 const signupSchema = z.object({
   fullName: z.string().min(1, { message: "Full name is required" }).trim(),
@@ -71,20 +72,21 @@ export const citizenSignup = async (
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const hashedCode = await bcrypt.hash(code, 10);
 
-    // Store verification
+    // Store email verification
     await VerificationModel.create({
       userId: newCitizen._id,
       code: hashedCode,
       expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
       isUsed: false,
       attempts: 0,
+      type: "email",
     });
 
-    // Send WhatsApp message
-    await sendWhatsAppCode(normalizedPhone, code);
+    // Send Email message
+    await sendEmailOTP(email, code);
 
-    console.log("Citizen created and verification code sent!");
-    res.status(201).json({ message: "Verification code sent via WhatsApp" });
+    console.log("Citizen created and email verification code sent!");
+    res.status(201).json({ message: "Verification code sent via Email" });
   } catch (err: any) {
     if (err.name === "ZodError") {
       res.status(400).json({
@@ -114,8 +116,21 @@ export const citizenSignin = async (
       return;
     }
 
+    if (!existingCitizen.isEmailVerified) {
+      res.status(401).json({
+        message: "Account email not verified",
+        status: 401,
+        step: "email"
+      });
+      return;
+    }
+
     if (!existingCitizen.isVerified) {
-      res.status(401).json({ message: "Account not verified via WhatsApp" });
+      res.status(401).json({
+        message: "Account phone not verified",
+        status: 401,
+        step: "whatsapp"
+      });
       return;
     }
 

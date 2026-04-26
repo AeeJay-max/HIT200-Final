@@ -20,6 +20,7 @@ const worker_model_1 = require("../models/worker.model");
 const socket_1 = require("../utils/socket");
 const audit_service_1 = require("../services/audit.service");
 const email_config_1 = require("../config/email.config");
+const whatsapp_service_1 = require("../services/whatsapp.service");
 const createNotification = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { title, message, type } = req.body;
@@ -41,58 +42,61 @@ const createNotification = (req, res) => __awaiter(void 0, void 0, void 0, funct
         io.emit("new_notification", notification);
         // Email integration using Nodemailer
         try {
-            // Determine sender email based on the Admin's department
             const admin = yield admin_model_1.AdminModel.findById(adminId);
-            const department = (admin === null || admin === void 0 ? void 0 : admin.department) || "Main";
-            let smtpUser = process.env.SMTP_USER;
-            let smtpPass = process.env.SMTP_PASS;
-            if (department === "Main") {
-                smtpUser = process.env.SMTP_USER_MAIN || "citypulsead@gmail.com";
-                smtpPass = process.env.SMTP_PASS_MAIN;
-            }
-            else if (department === "Roads") {
-                smtpUser = process.env.SMTP_USER_ROADS;
-                smtpPass = process.env.SMTP_PASS_ROADS;
-            }
-            else if (department === "Water") {
-                smtpUser = process.env.SMTP_USER_WATER;
-                smtpPass = process.env.SMTP_PASS_WATER;
-            }
-            else if (department === "Environment") {
-                smtpUser = process.env.SMTP_USER_ENVIRONMENT;
-                smtpPass = process.env.SMTP_PASS_ENVIRONMENT;
-            }
-            // Fallback to default if specific department credentials are not provided
-            smtpUser = smtpUser || process.env.SMTP_USER || "citypulsead@gmail.com";
-            smtpPass = smtpPass || process.env.SMTP_PASS;
-            // Fetch all citizen emails
-            const citizens = yield citizen_model_1.CitizenModel.find({}, "email");
+            const departmentName = (admin === null || admin === void 0 ? void 0 : admin.role) === "MAIN_ADMIN" ? "City Hall" : ((admin === null || admin === void 0 ? void 0 : admin.department) || "General");
+            // User specifically requested citypulse402@gmail.com as the sender
+            const smtpUser = "citypulse402@gmail.com";
+            const smtpPass = process.env.SMTP_PASS; // We expect the user to provide this in .env
+            // Fetch all citizen emails and phone numbers
+            const citizens = yield citizen_model_1.CitizenModel.find({}, "email phonenumber");
             const emails = citizens.map(c => c.email).filter(e => e);
+            const phoneNumbers = citizens.map(c => c.phonenumber).filter(p => p);
             if (emails.length > 0) {
-                if (!smtpUser || !smtpPass) {
-                    console.log(`[MOCK EMAIL] From: ${department} (${smtpUser}) | To: ${emails.length} citizens | Title: ${title} | Message: ${message}`);
+                if (!smtpPass) {
+                    console.log(`[MOCK EMAIL] From: ${smtpUser} | Subject: [${departmentName}] ${title} | To: ${emails.length} citizens`);
+                    console.warn("SMTP_PASS is missing in .env. Email not sent.");
                 }
                 else {
-                    // Initialize dynamic transporter for this specific department
+                    // Initialize transporter with citypulse402@gmail.com
                     const transporter = (0, email_config_1.getTransporter)({ user: smtpUser, pass: smtpPass });
                     const mailOptions = {
-                        from: `"${(admin === null || admin === void 0 ? void 0 : admin.fullName) || 'CityPulse Admin'}" <${(admin === null || admin === void 0 ? void 0 : admin.email) || smtpUser}>`,
+                        from: `"${departmentName} - City Pulse" <${smtpUser}>`,
                         bcc: emails,
-                        subject: `CityPulse Alert: ${title}`,
-                        text: `${message}\n\n- CityPulse ${department} Administration`,
-                        html: `<div><p>${message}</p><br/><p>- CityPulse ${department} Administration</p></div>`,
+                        subject: `[${departmentName}] ${title}`,
+                        text: `${message}\n\nThis is an official alert from the ${departmentName} Department.\n\n- City Pulse Administration`,
+                        html: `
+                            <div style="font-family: sans-serif; padding: 20px; color: #111827;">
+                                <h2 style="color: #2563eb; border-bottom: 2px solid #2563eb; padding-bottom: 10px;">
+                                    [${departmentName}] ${title}
+                                </h2>
+                                <p style="font-size: 16px; line-height: 1.6; margin-top: 20px;">
+                                    ${message.replace(/\n/g, "<br/>")}
+                                </p>
+                                <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280;">
+                                    <p>This is an official city-wide alert from <strong>City Pulse</strong>.</p>
+                                    <p>&copy; 2026 City Pulse Administration</p>
+                                </div>
+                            </div>
+                        `,
                     };
                     yield transporter.sendMail(mailOptions);
-                    console.log(`Successfully sent email alert from ${smtpUser} to ${emails.length} citizens.`);
+                    console.log(`Successfully sent City-wide Alert from ${smtpUser} to ${emails.length} citizens.`);
                 }
             }
-            else {
-                console.log("No citizens found to email.");
+            // WhatsApp Blast Integration
+            if (phoneNumbers.length > 0) {
+                try {
+                    const alertTag = type === "Emergency" || type === "City-wide Alert" ? "🚨 *ALERT*" : "📢 *ANNOUNCEMENT*";
+                    const whatsappMessage = `${alertTag}: *${title}*\n\n${message}\n\n- _City Pulse Administration_`;
+                    yield (0, whatsapp_service_1.sendBulkWhatsAppAlert)(phoneNumbers, whatsappMessage);
+                }
+                catch (whatsappErr) {
+                    console.error("Error sending city-wide WhatsApp alerts:", whatsappErr);
+                }
             }
         }
         catch (emailError) {
-            console.error("Error sending emails:", emailError);
-            // Don't fail the request if email sending fails
+            console.error("Error sending city-wide alert emails:", emailError);
         }
         res.status(201).json({ success: true, notification });
     }

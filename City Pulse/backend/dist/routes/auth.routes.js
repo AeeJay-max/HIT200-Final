@@ -7,4 +7,6 @@ router.post("/verify-whatsapp", auth_controller_1.verifyWhatsApp);
 router.post("/resend-whatsapp", auth_controller_1.resendWhatsApp);
 router.get("/phone", auth_controller_1.getPhoneNumber);
 router.post("/update-phone", auth_controller_1.updatePhoneNumber);
+router.post("/verify-email-otp", auth_controller_1.verifyEmailOTP);
+router.post("/resend-email-otp", auth_controller_1.resendEmailOTP);
 exports.default = router;

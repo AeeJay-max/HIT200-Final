@@ -62,3 +62,29 @@ export const sendWhatsAppCode = async (phoneNumber: string, code: string) => {
         throw new Error("Failed to send verification code via WhatsApp. Ensure your credentials are correct.");
     }
 };
+export const sendBulkWhatsAppAlert = async (phoneNumbers: string[], message: string) => {
+    const WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM || "whatsapp:+14155238886";
+    const twilioClient = getTwilioClient();
+
+    if (!twilioClient) {
+        console.log(`[SIMULATED BULK] WhatsApp Alert to ${phoneNumbers.length} recipients: ${message}`);
+        return;
+    }
+
+    console.log(`Starting bulk WhatsApp alert to ${phoneNumbers.length} recipients...`);
+
+    // Using Promise.allSettled to ensure all messages are attempted even if some fail
+    const results = await Promise.allSettled(phoneNumbers.map(async (num) => {
+        const formattedNumber = formatZimbabweNumber(num);
+        return twilioClient.messages.create({
+            from: WHATSAPP_FROM,
+            to: `whatsapp:${formattedNumber}`,
+            body: message
+        });
+    }));
+
+    const successful = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.filter(r => r.status === 'rejected').length;
+
+    console.log(`Bulk WhatsApp alert finished. Success: ${successful}, Failed: ${failed}`);
+};

@@ -12,6 +12,7 @@ import SignUp from "./pages/SignUp";
 import DeptAdminSignUp from "./pages/DeptAdminSignUp";
 import MainAdminSignUp from "./pages/MainAdminSignUp";
 import VerifyWhatsApp from "./pages/VerifyWhatsApp";
+import VerifyEmail from "./pages/VerifyEmail";
 import ProtectedRoute from "./components/ProtectedRoute";
 import WorkerDashboard from "./pages/WorkerDashboard";
 import AssignWorkerPage from "./pages/AssignWorkerPage";
@@ -72,6 +73,14 @@ export default function AnimatedRoutes() {
           element={
             <MotionWrapper>
               <SignUp />
+            </MotionWrapper>
+          }
+        />
+        <Route
+          path="/verify-email"
+          element={
+            <MotionWrapper>
+              <VerifyEmail />
             </MotionWrapper>
           }
         />

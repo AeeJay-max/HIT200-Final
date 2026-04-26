@@ -79,7 +79,7 @@ export default function NotificationSender() {
                         <Label>Message content</Label>
                         <Textarea value={message} onChange={(e) => setMessage(e.target.value)} required placeholder="Details about this alert..." className="min-h-[100px]" />
                     </div>
-                    <Button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-black">
+                    <Button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
                         <Send className="w-4 h-4 mr-2" />
                         {loading ? "Sending..." : "Push Notification (Email/Web)"}
                     </Button>

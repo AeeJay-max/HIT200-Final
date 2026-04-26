@@ -87,8 +87,8 @@ const SignUp = () => {
       const data = await response.json();
 
       if (response.ok) {
-        toast.success("Registration Successful! Please verify your WhatsApp number.");
-        navigate("/verify-whatsapp", { state: { email: citizenForm.email } });
+        toast.success("Registration Successful! Please verify your email.");
+        navigate("/verify-email", { state: { email: citizenForm.email } });
       } else if (data.errors && Array.isArray(data.errors)) {
         const errs: Record<string, string> = {};
         data.errors.forEach((err: any) => {

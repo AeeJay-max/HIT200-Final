@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { upload } from "../middlerware/upload.middleware";
-import { createIssue, getIssues, upvoteIssue, updateDumpingStage, getPublicAnalytics, assignWorker, getIssueTrackingStatus, voteIssue, assignDepartmentAdmin, getVotes, getPublicSchedule, getServiceOutages, acceptAssignment, rejectAssignment, reassignWorker, getAssignmentStats, getIssueHistory, reassignDepartment, overrideAssignee, getAssignablePersonnelByDepartment, getIssueById, overrideDepartmentAdminAssignment, overrideWorkerAssignment, getIssueDepartmentStaff } from "../controllers/issues.controllers";
+import { createIssue, getIssues, upvoteIssue, updateDumpingStage, getPublicAnalytics, assignWorker, getIssueTrackingStatus, voteIssue, assignDepartmentAdmin, getVotes, getPublicSchedule, getServiceOutages, acceptAssignment, rejectAssignment, reassignWorker, getAssignmentStats, getIssueHistory, reassignDepartment, overrideAssignee, getAssignablePersonnelByDepartment, getIssueById, overrideDepartmentAdminAssignment, overrideWorkerAssignment, getIssueDepartmentStaff, assignAdminAndWorker } from "../controllers/issues.controllers";
 import { authMiddleware } from "../middlerware/auth.middleware";
 
 const router = Router();
@@ -63,6 +63,7 @@ router.get("/issues/:id", authMiddleware, getIssueById);
 router.get("/issues/:id/department-staff", authMiddleware, getIssueDepartmentStaff);
 router.patch("/issues/:id/override-department-admin", authMiddleware, overrideDepartmentAdminAssignment);
 router.patch("/issues/:id/override-worker", authMiddleware, overrideWorkerAssignment);
+router.patch("/issues/:id/assign-pair", authMiddleware, assignAdminAndWorker);
 router.get("/history", authMiddleware, getIssueHistory);
 
 export default router;

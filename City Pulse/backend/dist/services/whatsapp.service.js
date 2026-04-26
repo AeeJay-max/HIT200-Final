@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendWhatsAppCode = void 0;
+exports.sendBulkWhatsAppAlert = exports.sendWhatsAppCode = void 0;
 const twilio_1 = __importDefault(require("twilio"));
 const phone_utils_1 = require("../utils/phone.utils");
 let client = null;
@@ -69,3 +69,25 @@ const sendWhatsAppCode = (phoneNumber, code) => __awaiter(void 0, void 0, void 0
     }
 });
 exports.sendWhatsAppCode = sendWhatsAppCode;
+const sendBulkWhatsAppAlert = (phoneNumbers, message) => __awaiter(void 0, void 0, void 0, function* () {
+    const WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM || "whatsapp:+14155238886";
+    const twilioClient = getTwilioClient();
+    if (!twilioClient) {
+        console.log(`[SIMULATED BULK] WhatsApp Alert to ${phoneNumbers.length} recipients: ${message}`);
+        return;
+    }
+    console.log(`Starting bulk WhatsApp alert to ${phoneNumbers.length} recipients...`);
+    // Using Promise.allSettled to ensure all messages are attempted even if some fail
+    const results = yield Promise.allSettled(phoneNumbers.map((num) => __awaiter(void 0, void 0, void 0, function* () {
+        const formattedNumber = (0, phone_utils_1.formatZimbabweNumber)(num);
+        return twilioClient.messages.create({
+            from: WHATSAPP_FROM,
+            to: `whatsapp:${formattedNumber}`,
+            body: message
+        });
+    })));
+    const successful = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.filter(r => r.status === 'rejected').length;
+    console.log(`Bulk WhatsApp alert finished. Success: ${successful}, Failed: ${failed}`);
+});
+exports.sendBulkWhatsAppAlert = sendBulkWhatsAppAlert;

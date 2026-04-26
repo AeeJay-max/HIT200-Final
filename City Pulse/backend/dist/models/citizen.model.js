@@ -22,5 +22,6 @@ const CitizenSchema = new mongoose_1.Schema({
     successfulReports: { type: Number, default: 0 },
     fakeReports: { type: Number, default: 0 },
     isVerified: { type: Boolean, default: false },
+    isEmailVerified: { type: Boolean, default: false },
 }, { timestamps: true });
 exports.CitizenModel = (0, mongoose_1.model)("Citizen", CitizenSchema);

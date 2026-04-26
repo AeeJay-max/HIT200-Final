@@ -8,6 +8,7 @@ import { VerificationWorkflowPanel, RecentlyResolvedPanel, AnalyticsSummaryPanel
 import { WorkflowQueues } from "../components/dashboard/WorkflowQueues";
 import { PersonnelControlPanel } from "../components/dashboard/PersonnelControlPanel";
 import { IssueActionDrawer } from "../components/dashboard/IssueActionDrawer";
+import NotificationSender from "../components/NotificationSender";
 
 import { Button } from "../components/ui/button";
 import { LayoutDashboard, CheckSquare, ShieldAlert, BadgeCheck, Building2, Users, PieChart, Map, Activity, BellRing, Filter, Menu, X as CloseIcon, GripVertical } from "lucide-react";
@@ -40,6 +41,7 @@ export default function MainAdminDashboard() {
     const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar toggle
     const [isActivityOpen, setIsActivityOpen] = useState(false); // Mobile/Md activity toggle
+    const [drawerMode, setDrawerMode] = useState<"control" | "assign">("control");
 
     // Layout persistence
     const savedLayout = localStorage.getItem("mainAdminLayoutConfig");
@@ -88,8 +90,9 @@ export default function MainAdminDashboard() {
         window.location.search = params.toString();
     };
 
-    const handleOpenDrawer = (issue: any) => {
+    const handleOpenDrawer = (issue: any, mode: "control" | "assign" = "control") => {
         setSelectedIssueId(issue._id);
+        setDrawerMode(mode);
     };
 
     const handleActionSuccess = () => { };
@@ -105,7 +108,7 @@ export default function MainAdminDashboard() {
                     </div>
                 </div>
             )}
-            {activeTab === 'issues' && <WorkflowQueues onAssignClick={handleOpenDrawer} />}
+            {activeTab === 'issues' && <WorkflowQueues onAssignClick={(issue) => handleOpenDrawer(issue, "assign")} />}
             {activeTab === 'escalations' && <EscalationPanel onIssueClick={handleOpenDrawer} />}
             {activeTab === 'verification' && <VerificationWorkflowPanel onIssueClick={handleOpenDrawer} />}
             {activeTab === 'departments' && <DepartmentPerformancePanel />}
@@ -117,8 +120,11 @@ export default function MainAdminDashboard() {
             )}
             {activeTab === 'alerts' && (
                 <div className="space-y-6">
-                    <OverdueIssuesPanel onIssueClick={handleOpenDrawer} />
-                    <RecentlyResolvedPanel onIssueClick={handleOpenDrawer} />
+                    <NotificationSender />
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                        <OverdueIssuesPanel onIssueClick={(issue) => handleOpenDrawer(issue, "assign")} />
+                        <RecentlyResolvedPanel onIssueClick={handleOpenDrawer} />
+                    </div>
                 </div>
             )}
         </main>
@@ -192,7 +198,7 @@ export default function MainAdminDashboard() {
                         </select>
                         <Button size="sm" className="bg-slate-800 hover:bg-slate-900 h-7 text-[10px]" onClick={handleApplyFilters}>Apply</Button>
                     </div>
-                    <Button size="sm" variant="destructive" className="h-7 text-[10px]"><BellRing className="w-3 h-3 mr-1" /><span className="hidden md:inline">Alerts</span></Button>
+                    <Button size="sm" variant="destructive" className="h-7 text-[10px]" onClick={() => setActiveTab("alerts")}><BellRing className="w-3 h-3 mr-1" /><span className="hidden md:inline">Alerts</span></Button>
                     <button onClick={() => setIsActivityOpen(!isActivityOpen)} className="p-2 xl:hidden hover:bg-slate-100 rounded">
                         <Activity className="w-5 h-5 text-slate-600" />
                     </button>
@@ -274,6 +280,7 @@ export default function MainAdminDashboard() {
 
             <IssueActionDrawer
                 issueId={selectedIssueId}
+                initialMode={drawerMode}
                 onClose={() => setSelectedIssueId(null)}
                 onActionSuccess={handleActionSuccess}
             />

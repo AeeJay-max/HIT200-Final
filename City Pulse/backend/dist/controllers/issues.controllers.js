@@ -45,7 +45,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.overrideWorkerAssignment = exports.overrideDepartmentAdminAssignment = exports.getIssueDepartmentStaff = exports.getIssueById = exports.getAssignablePersonnelByDepartment = exports.overrideAssignee = exports.reassignDepartment = exports.getIssueHistory = exports.getAssignmentStats = exports.reassignWorker = exports.rejectAssignment = exports.acceptAssignment = exports.getServiceOutages = exports.getPublicSchedule = exports.getVotes = exports.getIssueTrackingStatus = exports.assignDepartmentAdmin = exports.assignWorker = exports.getPublicAnalytics = exports.updateDumpingStage = exports.voteIssue = exports.upvoteIssue = exports.getIssues = exports.createIssue = void 0;
+exports.overrideWorkerAssignment = exports.overrideDepartmentAdminAssignment = exports.getIssueDepartmentStaff = exports.assignAdminAndWorker = exports.getIssueById = exports.getAssignablePersonnelByDepartment = exports.overrideAssignee = exports.reassignDepartment = exports.getIssueHistory = exports.getAssignmentStats = exports.reassignWorker = exports.rejectAssignment = exports.acceptAssignment = exports.getServiceOutages = exports.getPublicSchedule = exports.getVotes = exports.getIssueTrackingStatus = exports.assignDepartmentAdmin = exports.assignWorker = exports.getPublicAnalytics = exports.updateDumpingStage = exports.voteIssue = exports.upvoteIssue = exports.getIssues = exports.createIssue = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 const issue_model_1 = require("../models/issue.model");
 const multimedia_model_1 = require("../models/multimedia.model");
@@ -794,6 +794,75 @@ const getIssueById = (req, res) => __awaiter(void 0, void 0, void 0, function* (
     }
 });
 exports.getIssueById = getIssueById;
+const assignAdminAndWorker = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const { adminId, workerId } = req.body;
+        const requesterId = req.adminId;
+        const mainAdmin = yield admin_model_1.AdminModel.findById(requesterId);
+        if (!mainAdmin || mainAdmin.role !== "MAIN_ADMIN") {
+            res.status(403).json({ success: false, message: "Only Main Admins can perform this dual assignment" });
+            return;
+        }
+        const issue = yield issue_model_1.IssueModel.findById(id);
+        if (!issue) {
+            res.status(404).json({ success: false, message: "Issue not found" });
+            return;
+        }
+        // Assign to Admin (Supervisor)
+        if (adminId) {
+            issue.departmentAdminAssignedBy = adminId;
+        }
+        // Assign to Worker (Field Staff)
+        if (workerId) {
+            issue.workerAssignedToFix = workerId;
+            issue.status = "ASSIGNED_TO_WORKER";
+            issue.workflowStage = "ASSIGNED_TO_WORKER";
+            issue.workerAssignmentTimestamp = new Date();
+            // Work must begin within 48 hours if worker is assigned
+            issue.deadlineTimestamp = new Date(Date.now() + 48 * 60 * 60 * 1000);
+        }
+        else if (adminId) {
+            // If only Admin is assigned, it moves to ROUTED_TO_DEPARTMENT stage for them to handle further
+            issue.workflowStage = "ROUTED_TO_DEPARTMENT";
+            issue.status = "Pending";
+            issue.deadlineTimestamp = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24hr for them to assign worker
+        }
+        issue.overrideSource = "MAIN_ADMIN";
+        issue.overrideTimestamp = new Date();
+        if (!issue.timeline) {
+            issue.timeline = { reportedAt: issue.createdAt || new Date(), isOverdue: false };
+        }
+        issue.timeline.assignedAt = new Date();
+        yield issue.save();
+        // Log Action
+        yield (0, audit_service_1.logAction)({
+            actorId: requesterId,
+            actorRole: "ADMIN",
+            actionType: "ASSIGNMENT",
+            targetEntity: "ISSUE",
+            targetId: issue._id,
+            newValue: { adminId, workerId, status: issue.status },
+            ipAddress: req.ip
+        });
+        // Notifications
+        if (adminId) {
+            yield (0, notification_controller_1.sendTargetedNotification)(adminId, "Direct Supervision Assignment", `Main Admin assigned you to supervise: ${issue.title}`, "assignment");
+        }
+        if (workerId) {
+            yield (0, notification_controller_1.sendTargetedNotification)(workerId, "Direct Field Assignment", `Main Admin has directly assigned you to: ${issue.title}`, "assignment");
+        }
+        if (issue.citizenId) {
+            yield (0, notification_controller_1.sendTargetedNotification)(issue.citizenId.toString(), "Issue Update", `Your reported issue "${issue.title}" has been assigned to personnel for resolution.`, "status_update");
+        }
+        res.json({ success: true, message: "Assignment completed successfully", data: issue });
+    }
+    catch (err) {
+        console.error("Error in assignAdminAndWorker:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+exports.assignAdminAndWorker = assignAdminAndWorker;
 const getIssueDepartmentStaff = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
@@ -802,21 +871,41 @@ const getIssueDepartmentStaff = (req, res) => __awaiter(void 0, void 0, void 0, 
             res.status(404).json({ success: false, message: "Issue not found" });
             return;
         }
-        const departmentName = issue.assignedDepartment;
+        let departmentName = issue.assignedDepartment;
         if (!departmentName) {
             res.status(400).json({ success: false, message: "Issue has no assigned department" });
             return;
         }
-        const departmentAdmins = yield admin_model_1.AdminModel.find({
-            department: departmentName,
-            role: "DEPARTMENT_ADMIN"
-        }).select("-password -__v").lean();
-        const workers = yield worker_model_1.WorkerModel.find({
-            department: departmentName
-        }).select("-password -__v").lean();
+        // Resolve name if departmentName is an ID
+        if (mongoose_1.default.Types.ObjectId.isValid(departmentName)) {
+            const dept = yield department_model_1.DepartmentModel.findById(departmentName);
+            if (dept) {
+                departmentName = dept.name;
+            }
+        }
+        // Create a robust search query for the department
+        // Matches the exact name, or a case-insensitive regex
+        // Special handling for TSCZ and Roads mapping
+        const searchTerms = [departmentName];
+        // Explicit mapping: Roads -> Traffic Safety Council
+        if (departmentName.toLowerCase().includes("roads") || departmentName === "Traffic Safety Council of Zimbabwe" || departmentName === "TSCZ") {
+            searchTerms.push("Traffic Safety Council of Zimbabwe", "TSCZ", "Roads", "Roads Department");
+        }
+        const deptQuery = {
+            $or: [
+                { department: { $in: searchTerms } },
+                { department: { $regex: new RegExp(`^${departmentName}$`, 'i') } }
+            ]
+        };
+        const departmentAdmins = yield admin_model_1.AdminModel.find(Object.assign(Object.assign({}, deptQuery), { role: "DEPARTMENT_ADMIN", isActive: { $ne: false } })).select("-password -__v").lean();
+        const workers = yield worker_model_1.WorkerModel.find(Object.assign(Object.assign({}, deptQuery), { isActive: { $ne: false } })).select("-password -__v").lean();
         res.json({
             success: true,
-            data: { departmentAdmins, workers }
+            data: {
+                departmentName, // Return the resolved name for UI clarity
+                departmentAdmins,
+                workers
+            }
         });
     }
     catch (err) {
