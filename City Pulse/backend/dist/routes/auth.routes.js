@@ -3,8 +3,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_controller_1 = require("../controllers/auth.controller");
 const router = (0, express_1.Router)();
-router.post("/verify-whatsapp", auth_controller_1.verifyWhatsApp);
-router.post("/resend-whatsapp", auth_controller_1.resendWhatsApp);
 router.get("/phone", auth_controller_1.getPhoneNumber);
 router.post("/update-phone", auth_controller_1.updatePhoneNumber);
 router.post("/verify-email-otp", auth_controller_1.verifyEmailOTP);

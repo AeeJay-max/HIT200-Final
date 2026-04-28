@@ -12,6 +12,8 @@ const WorkerSchema = new mongoose_1.Schema({
     createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "Admin", required: true },
     isActive: { type: Boolean, default: true },
     deactivatedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "Admin" },
+    isVerified: { type: Boolean, default: false },
+    isEmailVerified: { type: Boolean, default: false },
     pushSubscription: { type: mongoose_1.Schema.Types.Mixed }, // Store Web Push Subscription object
     // Productivity analytics fields
     performanceScore: { type: Number, default: 100 },

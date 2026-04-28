@@ -11,7 +11,6 @@ import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 import DeptAdminSignUp from "./pages/DeptAdminSignUp";
 import MainAdminSignUp from "./pages/MainAdminSignUp";
-import VerifyWhatsApp from "./pages/VerifyWhatsApp";
 import VerifyEmail from "./pages/VerifyEmail";
 import ProtectedRoute from "./components/ProtectedRoute";
 import WorkerDashboard from "./pages/WorkerDashboard";
@@ -24,6 +23,7 @@ import WorkerCompleteIssue from "./pages/WorkerCompleteIssue";
 import AdminReviewIssue from "./pages/AdminReviewIssue";
 import MainAdminEscalations from "./pages/MainAdminEscalations";
 import MainAdminDashboard from "./pages/MainAdminDashboard"; // Dashboard Control Center
+import WorkerSetup from "./pages/WorkerSetup";
 
 const pageTransition = {
   initial: { opacity: 0, y: 40 },
@@ -85,10 +85,10 @@ export default function AnimatedRoutes() {
           }
         />
         <Route
-          path="/verify-whatsapp"
+          path="/worker-setup"
           element={
             <MotionWrapper>
-              <VerifyWhatsApp />
+              <WorkerSetup />
             </MotionWrapper>
           }
         />

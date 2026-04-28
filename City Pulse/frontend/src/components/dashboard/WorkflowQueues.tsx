@@ -14,6 +14,7 @@ interface Issue {
     status?: string;
     upvotes: string[];
     location: { address: string };
+    overdueStatus?: boolean;
     timeline?: { isOverdue: boolean };
 }
 

@@ -18,5 +18,7 @@ router.get("/main-admin/system-health", DashboardController.getSystemHealth);
 router.get("/main-admin/activity-stream", DashboardController.getActivityStream);
 router.get("/main-admin/personnel", DashboardController.getPersonnelDirectory);
 router.patch("/main-admin/personnel/:id/toggle", DashboardController.togglePersonnelStatus);
+router.delete("/main-admin/personnel/:id", DashboardController.deletePersonnel);
+router.post("/main-admin/ping/:id", DashboardController.pingWorker);
 
 export default router;

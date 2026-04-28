@@ -46,8 +46,6 @@ export default function MainAdminDashboard() {
     // Layout persistence
     const savedLayout = localStorage.getItem("mainAdminLayoutConfig");
     const initialLayout = savedLayout ? JSON.parse(savedLayout) : [20, 60, 20];
-    const savedBottomLayout = localStorage.getItem("mainAdminBottomLayoutConfig");
-    const initialBottomLayout = savedBottomLayout ? JSON.parse(savedBottomLayout) : [33, 34, 33];
 
     const [screenSize, setScreenSize] = useState('lg');
 

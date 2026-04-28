@@ -27,7 +27,14 @@ interface AuthContextType {
     password: string,
     role: "citizen" | "admin" | "worker" | "MAIN_ADMIN" | "DEPARTMENT_ADMIN" | "DEPARTMENT_WORKER",
     adminAccessCode?: string
-  ) => Promise<{ success: boolean; message?: string; status?: number }>;
+  ) => Promise<{
+    success: boolean;
+    message?: string;
+    status?: number;
+    verificationRequired?: boolean;
+    step?: string;
+    missingDetails?: boolean;
+  }>;
   register: (userData: any, role: "citizen" | "admin" | "worker" | "MAIN_ADMIN" | "DEPARTMENT_ADMIN" | "DEPARTMENT_WORKER") => Promise<void>;
   logout: () => void;
   isLoading: boolean;
@@ -146,7 +153,14 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
     password: string,
     role: "citizen" | "admin" | "worker" | "MAIN_ADMIN" | "DEPARTMENT_ADMIN" | "DEPARTMENT_WORKER",
     adminAccessCode?: string
-  ): Promise<{ success: boolean; message?: string; status?: number }> => {
+  ): Promise<{
+    success: boolean;
+    message?: string;
+    status?: number;
+    verificationRequired?: boolean;
+    step?: string;
+    missingDetails?: boolean;
+  }> => {
     setIsLoading(true);
     try {
       let endpoint = "citizen/signin";
@@ -185,7 +199,10 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
         return {
           success: false,
           message: result.message || "Login failed.",
-          status: response.status
+          status: response.status,
+          verificationRequired: result.verificationRequired,
+          step: result.step,
+          missingDetails: result.missingDetails
         };
       }
 

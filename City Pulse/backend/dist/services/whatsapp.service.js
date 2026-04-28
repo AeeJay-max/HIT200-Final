@@ -15,76 +15,48 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendBulkWhatsAppAlert = exports.sendWhatsAppCode = void 0;
 const twilio_1 = __importDefault(require("twilio"));
 const phone_utils_1 = require("../utils/phone.utils");
-let client = null;
-const getTwilioClient = () => {
-    if (client)
-        return client;
-    const ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
-    const AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-    if (!ACCOUNT_SID || !ACCOUNT_SID.startsWith("AC")) {
-        console.warn("WARNING: TWILIO_ACCOUNT_SID is missing or invalid. WhatsApp messages will not be sent.");
-        return null;
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const fromPhoneNumber = process.env.TWILIO_WHATSAPP_NUMBER || "whatsapp:+14155238886";
+let client;
+if (accountSid && authToken) {
+    client = (0, twilio_1.default)(accountSid, authToken);
+}
+/**
+ * Sends a message via Twilio WhatsApp API
+ */
+const sendTwilioMessage = (to, message) => __awaiter(void 0, void 0, void 0, function* () {
+    if (!client) {
+        console.warn("WARNING: Twilio credentials missing. Message will be simulated.");
+        console.log(`[SIMULATED WhatsApp via Twilio] to ${to}: ${message}`);
+        return { success: true, simulated: true };
     }
-    if (!AUTH_TOKEN) {
-        console.warn("WARNING: TWILIO_AUTH_TOKEN is missing. WhatsApp messages will not be sent.");
-        return null;
-    }
-    client = (0, twilio_1.default)(ACCOUNT_SID, AUTH_TOKEN);
-    return client;
-};
-const sendWhatsAppCode = (phoneNumber, code) => __awaiter(void 0, void 0, void 0, function* () {
-    const WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM || "whatsapp:+14155238886";
-    const CONTENT_SID = process.env.TWILIO_CONTENT_SID;
     try {
-        const twilioClient = getTwilioClient();
-        if (!twilioClient) {
-            console.log(`[SIMULATED] WhatsApp code for ${phoneNumber}: ${code}`);
-            return;
-        }
-        const formattedNumber = (0, phone_utils_1.formatZimbabweNumber)(phoneNumber);
-        const messagePayload = {
-            from: WHATSAPP_FROM,
-            to: `whatsapp:${formattedNumber}`,
-        };
-        if (CONTENT_SID) {
-            // Use Content API (Templates)
-            messagePayload.contentSid = CONTENT_SID;
-            // Assuming variable "1" is the code. Adjust if template uses different indices.
-            messagePayload.contentVariables = JSON.stringify({ "1": code });
-        }
-        else {
-            // Fallback to free-form text message
-            messagePayload.body = `Your CityPulse signup verification code is ${code}`;
-        }
-        yield twilioClient.messages.create(messagePayload);
-        console.log(`WhatsApp code sent to ${formattedNumber} ${CONTENT_SID ? "(via template)" : "(via text)"}`);
+        const formattedNumber = (0, phone_utils_1.formatZimbabweNumber)(to);
+        const toWhatsApp = `whatsapp:+${formattedNumber}`;
+        const response = yield client.messages.create({
+            body: message,
+            from: fromPhoneNumber,
+            to: toWhatsApp
+        });
+        console.log(`WhatsApp message sent successfully to ${toWhatsApp} via Twilio. SID: ${response.sid}`);
+        return { success: true, sid: response.sid };
     }
     catch (error) {
-        console.error("Error sending WhatsApp code:", error);
-        // Special handling for common Twilio errors during setup
-        if (error.code === 21608) {
-            throw new Error("This number is not yet in the Twilio WhatsApp Sandbox. Please join the sandbox first.");
-        }
-        throw new Error("Failed to send verification code via WhatsApp. Ensure your credentials are correct.");
+        console.error("Twilio WhatsApp Error:", error.message);
+        // We do not re-throw here to prevent crashing the server
+        return { success: false, error: error.message };
     }
+});
+const sendWhatsAppCode = (phoneNumber, code) => __awaiter(void 0, void 0, void 0, function* () {
+    const message = `Your CityPulse signup verification code is: ${code}`;
+    yield sendTwilioMessage(phoneNumber, message);
 });
 exports.sendWhatsAppCode = sendWhatsAppCode;
 const sendBulkWhatsAppAlert = (phoneNumbers, message) => __awaiter(void 0, void 0, void 0, function* () {
-    const WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM || "whatsapp:+14155238886";
-    const twilioClient = getTwilioClient();
-    if (!twilioClient) {
-        console.log(`[SIMULATED BULK] WhatsApp Alert to ${phoneNumbers.length} recipients: ${message}`);
-        return;
-    }
-    console.log(`Starting bulk WhatsApp alert to ${phoneNumbers.length} recipients...`);
-    // Using Promise.allSettled to ensure all messages are attempted even if some fail
+    console.log(`Starting bulk WhatsApp alert via Twilio to ${phoneNumbers.length} recipients...`);
     const results = yield Promise.allSettled(phoneNumbers.map((num) => __awaiter(void 0, void 0, void 0, function* () {
-        const formattedNumber = (0, phone_utils_1.formatZimbabweNumber)(num);
-        return twilioClient.messages.create({
-            from: WHATSAPP_FROM,
-            to: `whatsapp:${formattedNumber}`,
-            body: message
-        });
+        return sendTwilioMessage(num, message);
     })));
     const successful = results.filter(r => r.status === 'fulfilled').length;
     const failed = results.filter(r => r.status === 'rejected').length;

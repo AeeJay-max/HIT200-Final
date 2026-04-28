@@ -83,14 +83,23 @@ const SignIn = () => {
         navigate(path, { replace: true });
         hideLoader();
       } else {
-        if (activeTab === "citizen" && result.status === 401) {
-          toast.error("Account Unverified", {
-            description: "Redirecting to verification page...",
+        if ((activeTab === "citizen" || activeTab === "worker") && result.verificationRequired) {
+          toast.error(result.message || "Account Unverified", {
+            description: "Redirecting to verification flow...",
           });
-          const targetPath = result.step === "email" ? "/verify-email" : "/verify-whatsapp";
-          setTimeout(() => {
-            navigate(targetPath, { state: { email: citizenForm.email } });
-          }, 1500);
+
+          const email = activeTab === "citizen" ? citizenForm.email : workerForm.email;
+          const role = activeTab === "citizen" ? "CITIZEN" : "WORKER";
+
+          if (result.missingDetails) {
+            setTimeout(() => {
+              navigate("/worker-setup", { state: { email, role } });
+            }, 1500);
+          } else {
+            setTimeout(() => {
+              navigate("/verify-email", { state: { email, role } });
+            }, 1500);
+          }
           hideLoader();
           return;
         }

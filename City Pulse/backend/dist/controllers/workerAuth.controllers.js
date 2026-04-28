@@ -52,6 +52,8 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const refreshToken_model_1 = require("../models/refreshToken.model");
 const crypto_1 = __importDefault(require("crypto"));
 const phone_utils_1 = require("../utils/phone.utils");
+const verification_model_1 = require("../models/verification.model");
+const email_service_1 = require("../services/email.service");
 const workerSignup = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { fullName, email, password, phonenumber, departmentId } = req.body;
@@ -121,6 +123,36 @@ const workerLogin = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                 success: false
             });
             return;
+        }
+        // New Verification Checks
+        if (!worker.email || !worker.phonenumber) {
+            res.status(401).json({
+                message: "Missing contact details. Please update your profile.",
+                verificationRequired: true,
+                missingDetails: true,
+                email: worker.email,
+                role: "WORKER"
+            });
+            return;
+        }
+        if (!worker.isEmailVerified) {
+            const code = Math.floor(100000 + Math.random() * 900000).toString();
+            const hashedCode = yield bcryptjs_1.default.hash(code, 10);
+            yield verification_model_1.VerificationModel.findOneAndUpdate({ userId: worker._id, type: "email" }, { code: hashedCode, expiresAt: new Date(Date.now() + 5 * 60 * 1000), isUsed: false, attempts: 0 }, { upsert: true });
+            yield (0, email_service_1.sendEmailOTP)(worker.email, code).catch(err => console.error("Worker Login Email OTP error:", err));
+            res.status(401).json({
+                message: "Please verify your email. A new code has been sent.",
+                verificationRequired: true,
+                step: "email",
+                email: worker.email,
+                role: "WORKER"
+            });
+            return;
+        }
+        if (!worker.isVerified) {
+            // Auto-verify legacy isVerified flag if email is already verified
+            worker.isVerified = true;
+            yield worker.save();
         }
         const accessToken = jsonwebtoken_1.default.sign({ id: worker._id, role: "WORKER" }, process.env.JWT_PASSWORD, { expiresIn: "10h" });
         const refreshToken = crypto_1.default.randomBytes(40).toString("hex");

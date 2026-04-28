@@ -31,3 +31,22 @@ export const sendEmailOTP = async (email: string, code: string) => {
         throw new Error("Failed to send verification email");
     }
 };
+
+export const sendPingEmail = async (to: string[], subject: string, htmlContent: string) => {
+    const transporter = getTransporter();
+
+    const mailOptions = {
+        from: process.env.SMTP_USER || "citypulse402@gmail.com",
+        to: to.join(","),
+        subject: subject,
+        html: htmlContent,
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+        console.log("Ping email sent to:", to);
+    } catch (error) {
+        console.error("Error sending ping email:", error);
+        throw new Error("Failed to send ping email");
+    }
+};

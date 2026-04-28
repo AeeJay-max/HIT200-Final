@@ -108,20 +108,22 @@ const citizenSignin = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             return;
         }
         if (!existingCitizen.isEmailVerified) {
+            // Generate and send Email OTP
+            const code = Math.floor(100000 + Math.random() * 900000).toString();
+            const hashedCode = yield bcryptjs_1.default.hash(code, 10);
+            yield verification_model_1.VerificationModel.findOneAndUpdate({ userId: existingCitizen._id, type: "email" }, { code: hashedCode, expiresAt: new Date(Date.now() + 5 * 60 * 1000), isUsed: false, attempts: 0 }, { upsert: true });
+            yield (0, email_service_1.sendEmailOTP)(existingCitizen.email, code).catch(err => console.error("Login Email OTP error:", err));
             res.status(401).json({
-                message: "Account email not verified",
-                status: 401,
+                message: "Account email not verified. A new code has been sent to your email.",
+                verificationRequired: true,
                 step: "email"
             });
             return;
         }
         if (!existingCitizen.isVerified) {
-            res.status(401).json({
-                message: "Account phone not verified",
-                status: 401,
-                step: "whatsapp"
-            });
-            return;
+            // Auto-verify legacy isVerified flag if email is already verified
+            existingCitizen.isVerified = true;
+            yield existingCitizen.save();
         }
         const isPasswordValid = yield bcryptjs_1.default.compare(password, existingCitizen.password);
         if (!isPasswordValid) {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { VITE_BACKEND_URL } from "../../config/config";
-import { Users, UserCheck, UserX, Search, ShieldCheck, HardHat } from "lucide-react";
+import { Users, UserCheck, UserX, Search, ShieldCheck, HardHat, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -53,6 +53,27 @@ export const PersonnelControlPanel = () => {
             }
         } catch (err) {
             console.error("Toggle error:", err);
+        }
+    };
+
+    const handleDeletePersonnel = async (id: string, role: string) => {
+        if (!confirm(`WARNING: Permanent removal of this personnel record. This action cannot be undone. Proceed?`)) return;
+
+        try {
+            const res = await fetch(`${VITE_BACKEND_URL}/api/v1/dashboard/main-admin/personnel/${id}?role=${role}`, {
+                method: "DELETE",
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem("auth_token")}`
+                }
+            });
+            const data = await res.json();
+            if (data.success) {
+                fetchPersonnel();
+            } else {
+                alert(data.message || "Deletion failed");
+            }
+        } catch (err) {
+            console.error("Delete error:", err);
         }
     };
 
@@ -147,6 +168,14 @@ export const PersonnelControlPanel = () => {
                                                         >
                                                             {admin.isActive !== false ? <UserX className="w-3.5 h-3.5 text-rose-500" /> : <UserCheck className="w-3.5 h-3.5 text-emerald-500" />}
                                                         </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-6 w-6 ml-1 hover:bg-rose-50 text-rose-400 hover:text-rose-600"
+                                                            onClick={() => handleDeletePersonnel(admin._id, "DEPARTMENT_ADMIN")}
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </Button>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -221,6 +250,14 @@ export const PersonnelControlPanel = () => {
                                                                 </Button>
                                                             </div>
                                                         )}
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-6 w-6 ml-2 hover:bg-rose-50 text-rose-400 hover:text-rose-600"
+                                                            onClick={() => handleDeletePersonnel(worker._id, "WORKER")}
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </Button>
                                                     </div>
                                                 </td>
                                             </tr>

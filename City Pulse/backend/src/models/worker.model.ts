@@ -14,6 +14,8 @@ export interface IWorker extends Document {
   totalIssuesResolved: number;
   totalOverdueIssues: number;
   averageResolutionTimeHours: number;
+  isVerified: boolean;
+  isEmailVerified: boolean;
   pushSubscription?: any;
 }
 
@@ -28,6 +30,8 @@ const WorkerSchema = new Schema<IWorker>(
     createdBy: { type: Schema.Types.ObjectId, ref: "Admin", required: true },
     isActive: { type: Boolean, default: true },
     deactivatedBy: { type: Schema.Types.ObjectId, ref: "Admin" },
+    isVerified: { type: Boolean, default: false },
+    isEmailVerified: { type: Boolean, default: false },
     pushSubscription: { type: Schema.Types.Mixed }, // Store Web Push Subscription object
 
     // Productivity analytics fields

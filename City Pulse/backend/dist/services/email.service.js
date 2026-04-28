@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendEmailOTP = void 0;
+exports.sendPingEmail = exports.sendEmailOTP = void 0;
 const email_config_1 = require("../config/email.config");
 const sendEmailOTP = (email, code) => __awaiter(void 0, void 0, void 0, function* () {
     const transporter = (0, email_config_1.getTransporter)();
@@ -42,3 +42,21 @@ const sendEmailOTP = (email, code) => __awaiter(void 0, void 0, void 0, function
     }
 });
 exports.sendEmailOTP = sendEmailOTP;
+const sendPingEmail = (to, subject, htmlContent) => __awaiter(void 0, void 0, void 0, function* () {
+    const transporter = (0, email_config_1.getTransporter)();
+    const mailOptions = {
+        from: process.env.SMTP_USER || "citypulse402@gmail.com",
+        to: to.join(","),
+        subject: subject,
+        html: htmlContent,
+    };
+    try {
+        yield transporter.sendMail(mailOptions);
+        console.log("Ping email sent to:", to);
+    }
+    catch (error) {
+        console.error("Error sending ping email:", error);
+        throw new Error("Failed to send ping email");
+    }
+});
+exports.sendPingEmail = sendPingEmail;

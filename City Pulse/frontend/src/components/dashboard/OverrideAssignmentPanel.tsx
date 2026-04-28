@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { VITE_BACKEND_URL } from "../../config/config";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";

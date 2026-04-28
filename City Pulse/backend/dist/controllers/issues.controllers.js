@@ -156,7 +156,7 @@ const getIssues = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             const media = yield multimedia_model_1.MultimediaModel.find({ issueID: issue._id });
             return Object.assign(Object.assign({}, issue), { reportedBy: ((_a = issue.citizenId) === null || _a === void 0 ? void 0 : _a.fullName) || "Anonymous", image: media.length > 0 ? media[0].url : null, media: media.map(m => m.url) });
         })));
-        res.json({ success: true, data: issuesWithMedia });
+        res.json({ success: true, issues: issuesWithMedia, data: issuesWithMedia });
     }
     catch (err) {
         console.error("Error fetching issues:", err);

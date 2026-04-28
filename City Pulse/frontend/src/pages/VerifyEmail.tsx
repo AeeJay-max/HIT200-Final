@@ -18,6 +18,7 @@ const VerifyEmail = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const email = location.state?.email;
+    const role = location.state?.role || "CITIZEN";
     const [code, setCode] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [countdown, setCountdown] = useState(300); // 5 minutes
@@ -61,23 +62,14 @@ const VerifyEmail = () => {
             const response = await fetch(`${VITE_BACKEND_URL}/api/v1/auth/verify-email-otp`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email, code }),
+                body: JSON.stringify({ email, code, role }),
             });
 
             const data = await response.json();
 
             if (response.ok) {
-                toast.success("Email verified successfully! Now let's verify your WhatsApp.");
-                // Fetch new WhatsApp OTP or just redirect if signup sends both?
-                // Actually, my signup sends Email OTP. After email verify, we should trigger WhatsApp OTP.
-                // Re-sending WhatsApp OTP here for the next step.
-                await fetch(`${VITE_BACKEND_URL}/api/v1/auth/resend-whatsapp`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email }),
-                });
-
-                navigate("/verify-whatsapp", { state: { email } });
+                toast.success("Email verified successfully! You can now sign in.");
+                navigate("/signin");
             } else {
                 toast.error(data.message || "Verification failed");
             }
@@ -96,7 +88,7 @@ const VerifyEmail = () => {
             const response = await fetch(`${VITE_BACKEND_URL}/api/v1/auth/resend-email-otp`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email }),
+                body: JSON.stringify({ email, role }),
             });
 
             const data = await response.json();
@@ -134,7 +126,7 @@ const VerifyEmail = () => {
                         <CardTitle className="text-center">Verify Your Email</CardTitle>
                         <CardDescription className="text-center text-gray-500">
                             We've sent a 6-digit verification code to <span className="font-bold text-foreground">{email}</span>.
-                            Please enter it below to proceed to WhatsApp verification.
+                            Please enter it below to complete your registration.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>

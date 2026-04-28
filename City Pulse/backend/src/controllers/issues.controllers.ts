@@ -141,7 +141,7 @@ export const getIssues = async (req: Request, res: Response): Promise<void> => {
       })
     );
 
-    res.json({ success: true, data: issuesWithMedia });
+    res.json({ success: true, issues: issuesWithMedia, data: issuesWithMedia });
   } catch (err) {
     console.error("Error fetching issues:", err);
     res.status(500).json({ message: "Something went wrong" });

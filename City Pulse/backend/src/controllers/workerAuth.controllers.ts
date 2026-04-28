@@ -5,6 +5,9 @@ import jwt from "jsonwebtoken";
 import { RefreshTokenModel } from "../models/refreshToken.model";
 import crypto from "crypto";
 import { formatZimbabweNumber } from "../utils/phone.utils";
+import { VerificationModel } from "../models/verification.model";
+import { sendWhatsAppCode } from "../services/whatsapp.service";
+import { sendEmailOTP } from "../services/email.service";
 
 export const workerSignup = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -84,6 +87,44 @@ export const workerLogin = async (req: Request, res: Response): Promise<void> =>
                 success: false
             });
             return;
+        }
+
+        // New Verification Checks
+        if (!worker.email || !worker.phonenumber) {
+            res.status(401).json({
+                message: "Missing contact details. Please update your profile.",
+                verificationRequired: true,
+                missingDetails: true,
+                email: worker.email,
+                role: "WORKER"
+            });
+            return;
+        }
+
+        if (!worker.isEmailVerified) {
+            const code = Math.floor(100000 + Math.random() * 900000).toString();
+            const hashedCode = await bcryptjs.hash(code, 10);
+            await VerificationModel.findOneAndUpdate(
+                { userId: worker._id, type: "email" },
+                { code: hashedCode, expiresAt: new Date(Date.now() + 5 * 60 * 1000), isUsed: false, attempts: 0 },
+                { upsert: true }
+            );
+            await sendEmailOTP(worker.email, code).catch(err => console.error("Worker Login Email OTP error:", err));
+
+            res.status(401).json({
+                message: "Please verify your email. A new code has been sent.",
+                verificationRequired: true,
+                step: "email",
+                email: worker.email,
+                role: "WORKER"
+            });
+            return;
+        }
+
+        if (!worker.isVerified) {
+            // Auto-verify legacy isVerified flag if email is already verified
+            worker.isVerified = true;
+            await worker.save();
         }
 
         const accessToken = jwt.sign(

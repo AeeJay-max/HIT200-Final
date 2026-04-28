@@ -21,6 +21,25 @@ const reassignAction = async (issueId: string, type: 'reassign-department' | 'ov
     } catch { toast.error("Error connecting server"); }
 };
 
+const handlePingWorker = async (issueId: string) => {
+    try {
+        const res = await fetch(`${VITE_BACKEND_URL}/api/v1/dashboard/main-admin/ping/${issueId}`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${localStorage.getItem("auth_token")}`
+            }
+        });
+        const result = await res.json();
+        if (res.ok) {
+            toast.success("Ping successful", { description: result.message });
+        } else {
+            toast.error("Ping failed", { description: result.message });
+        }
+    } catch (error) {
+        toast.error("Error connecting to server");
+    }
+};
+
 export const EscalationPanel = ({ onIssueClick }: { onIssueClick: (issue: any) => void }) => {
     const [data, setData] = useState<any>({ escalatedIssues: [], slaRiskIssues: [], repeatedDelayDepartments: [] });
     const [departments, setDepartments] = useState<any[]>([]);
@@ -152,7 +171,10 @@ export const OverdueIssuesPanel = ({ onIssueClick }: { onIssueClick: (issue: any
                             </div>
                             <div className="flex gap-2 items-center">
                                 <span className="text-xs font-black text-rose-600 bg-rose-100 px-2 py-1 rounded">-{hoursOverdue} Hours</span>
-                                <Button size="sm" variant="outline" className="h-7 text-xs border-orange-200 text-orange-600 hover:bg-orange-50" onClick={() => toast("Ping feature integrated directly soon")}>
+                                <Button size="sm" variant="outline" className="h-7 text-xs border-orange-200 text-orange-600 hover:bg-orange-50" onClick={(e) => {
+                                    e.stopPropagation();
+                                    handlePingWorker(issue._id);
+                                }}>
                                     <Bell className="w-3 h-3 mr-1" /> Ping Worker
                                 </Button>
                             </div>
