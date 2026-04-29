@@ -42,10 +42,24 @@ export const createNotification = async (req: Request, res: Response): Promise<v
             const smtpUser = "citypulse402@gmail.com";
             const smtpPass = process.env.SMTP_PASS; // We expect the user to provide this in .env
 
-            // Fetch all citizen emails and phone numbers
-            const citizens = await CitizenModel.find({}, "email phonenumber");
-            const emails = citizens.map(c => c.email).filter(e => e);
-            const phoneNumbers = citizens.map(c => c.phonenumber).filter(p => p);
+            // Fetch all users' emails and phone numbers (Citizens, Admins, Workers)
+            const [citizens, admins, workers] = await Promise.all([
+                CitizenModel.find({}, "email phonenumber"),
+                AdminModel.find({}, "email phonenumber"),
+                WorkerModel.find({}, "email phonenumber")
+            ]);
+
+            const emails = [
+                ...citizens.map(c => c.email),
+                ...admins.map(a => a.email),
+                ...workers.map(w => w.email)
+            ].filter(e => e);
+
+            const phoneNumbers = [
+                ...citizens.map(c => c.phonenumber),
+                ...admins.map(a => a.phonenumber),
+                ...workers.map(w => w.phonenumber)
+            ].filter(p => p);
 
             if (emails.length > 0) {
                 if (!smtpPass) {
@@ -77,7 +91,7 @@ export const createNotification = async (req: Request, res: Response): Promise<v
                     };
 
                     await transporter.sendMail(mailOptions);
-                    console.log(`Successfully sent City-wide Alert from ${smtpUser} to ${emails.length} citizens.`);
+                    console.log(`Successfully sent City-wide Alert from ${smtpUser} to ${emails.length} recipients.`);
                 }
             }
 
@@ -174,8 +188,9 @@ export const broadcastNotification = async (req: Request, res: Response): Promis
         // Batch send push notifications to all users with subscriptions
         const citizens = await CitizenModel.find({ pushSubscription: { $exists: true } });
         const admins = await AdminModel.find({ pushSubscription: { $exists: true } });
+        const workers = await WorkerModel.find({ pushSubscription: { $exists: true } });
 
-        const allUsers = [...citizens, ...admins];
+        const allUsers = [...citizens, ...admins, ...workers];
         const pushPromises = allUsers.map(u =>
             webpush.sendNotification(u.pushSubscription as any, JSON.stringify({ title, message, type: "Broadcast" }))
                 .catch(err => console.error("Push failed for user", u._id))
@@ -217,9 +232,15 @@ export const disasterBroadcast = async (req: Request, res: Response): Promise<vo
             deliveryStatus: "pending"
         });
 
-        const citizens = await CitizenModel.find({ pushSubscription: { $exists: true } });
-        const pushPromises = citizens.map(c =>
-            webpush.sendNotification(c.pushSubscription as any, JSON.stringify({ title, message, type: "Emergency" }))
+        const [citizens, admins, workers] = await Promise.all([
+            CitizenModel.find({ pushSubscription: { $exists: true } }),
+            AdminModel.find({ pushSubscription: { $exists: true } }),
+            WorkerModel.find({ pushSubscription: { $exists: true } })
+        ]);
+
+        const allUsers = [...citizens, ...admins, ...workers];
+        const pushPromises = allUsers.map(u =>
+            webpush.sendNotification(u.pushSubscription as any, JSON.stringify({ title, message, type: "Emergency" }))
         );
 
         await Promise.allSettled(pushPromises);
